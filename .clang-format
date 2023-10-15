@@ -1,0 +1,14 @@
+---
+AllowShortBlocksOnASingleLine: Never
+AllowShortCaseLabelsOnASingleLine: false
+AllowShortEnumsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: None
+AllowShortIfStatementsOnASingleLine: false
+AllowShortLoopsOnASingleLine: false
+BasedOnStyle: Google
+BreakAfterAttributes: Always
+ColumnLimit: 0
+IndentWidth: 4
+NamespaceIndentation: All
+
+...
