@@ -5,10 +5,14 @@ AllowShortEnumsOnASingleLine: false
 AllowShortFunctionsOnASingleLine: None
 AllowShortIfStatementsOnASingleLine: false
 AllowShortLoopsOnASingleLine: false
-BasedOnStyle: Google
+BasedOnStyle: LLVM
 BreakAfterAttributes: Always
-ColumnLimit: 0
+IncludeBlocks: Regroup
 IndentWidth: 4
-NamespaceIndentation: All
+ColumnLimit: 100
+PointerAlignment: Left
+# ReferenceAlignment: Left
+# IndentExternBlock NoIndent
+# NamespaceIndentation: All
 
 ...

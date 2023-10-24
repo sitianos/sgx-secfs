@@ -1,0 +1,10 @@
+{
+    "privkey": "",
+    "volumekey": "",
+    "storage": {
+        "type": "local",
+        "config": {
+            "base_dir": "/tmp/mnt"
+        }
+    }
+}

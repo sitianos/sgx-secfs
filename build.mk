@@ -1,5 +1,17 @@
-include $(PWD)/buildenv.mk
+SGX_SDK ?= /opt/intel/sgxsdk
+SGX_MODE ?= SIM
+SGX_ARCH ?= x64
+SGX_DEBUG ?= 1
 
+BUILD_DIR ?= build
+BIN_DIR ?= $(BUILD_DIR)/bin
+LIB_DIR ?= $(BUILD_DIR)/lib
+INCLUDE_DIR ?= $(BUILD_DIR)/include
+
+C ?= gcc
+CXX ?= g++
+
+########## SGX Common Configuration ##########
 ifeq ($(shell getconf LONG_BIT), 32)
 	SGX_ARCH := x86
 else ifeq ($(findstring -m32, $(CXXFLAGS)), -m32)

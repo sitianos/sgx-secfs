@@ -1,17 +1,17 @@
-include build.mk
+.PHONY: all install clean uninstall app enclave tests
 
-.PHONY: all install clean uninstall frontend
+all: app enclave
 
-all: frontend # enclave backend
-
-frontend: 
+app:
 	make -C $@
 
 enclave:
-	make -C enclave
+	make -C $@
 
-backend: 
-	make -C backend
+tests:
+	make -C $@
 
 clean:
-	make -C frontend clean
+	make -C app clean
+	make -C enclave clean
+	make -C tests clean

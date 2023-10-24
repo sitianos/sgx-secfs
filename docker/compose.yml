@@ -1,0 +1,22 @@
+version: '3'
+
+services:
+  secfs:
+    container_name: docker_secfs
+    image: secfs
+    build:
+      context: ./
+      dockerfile: Dockerfile
+
+    devices:
+#      - /dev/sgx/enclave
+#      - /dev/sgx/provision
+       - /dev/fuse
+    cap_add:
+      - SYS_ADMIN
+    volumes:
+      - ..:/app
+    stdin_open: true
+    tty: true
+    command:
+      cat
