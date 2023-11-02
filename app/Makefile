@@ -20,37 +20,49 @@ else
 	SGX_APP_CFLAGS += -DNDEBUG -UEDEBUG -UDEBUG
 endif
 
-INCLUDES := $(addprefix -I, ../include) $(shell pkg-config fuse3 --cflags)
+INCLUDES := $(addprefix -I, . ../include) $(shell pkg-config fuse3 --cflags)
 LIBS := $(shell pkg-config fuse3 --libs)
 
 CFLAGS := $(SGX_COMMON_CFLAGS) $(SGX_APP_CFLAGS) $(INCLUDES)
 CXXFLAGS := $(SGX_COMMON_CXXFLAGS) $(SGX_APP_CFLAGS) $(INCLUDES)
 
-LDFLAGS := -L$(SGX_LIBRARY_PATH) $(Urts_LIBS) $(LIBS) -Wl,--rpath $(SGX_LIBRARY_PATH)
+LDFLAGS := -L$(SGX_LIBRARY_PATH) -Wl,--rpath $(SGX_LIBRARY_PATH) $(Urts_LIBS) $(LIBS)
 
 OBJ_DIR := $(BUILD_DIR)/app
-objs := main.o fuse_operations.o volume.o enclave.o backend/local.o
+objs := main.o fuse_operations.o volume.o enclave.o ocall.o backend/local.o
 build_objs := $(addprefix $(OBJ_DIR)/, $(objs))
 exec := $(BIN_DIR)/secfs
 
 .PHONY: all clean
 
-all: $(OBJ_DIR) $(build_objs) $(exec)
+all: $(OBJ_DIR) $(exec)
 
 $(OBJ_DIR):
 	mkdir -p $(OBJ_DIR)
 	mkdir -p $(OBJ_DIR)/backend
 	mkdir -p $(BIN_DIR)
 
+$(exec): $(build_objs) $(OBJ_DIR)/enclave_u.o
+	@echo ---------- link $@ ----------
+	$(CXX) $^ $(LDFLAGS) -o $@
+	@echo
+
 $(build_objs): $(OBJ_DIR)/%.o: %.cpp
 	@echo ---------- build $@ ----------
 	$(CXX) $< -c $(CXXFLAGS) -o $@
 	@echo
 
-$(exec): $(build_objs)
-	@echo ---------- link $@ ----------
-	$(CXX) $^ $(LDFLAGS) -o $@
+$(OBJ_DIR)/enclave_u.o: enclave_u.c
+	@echo ---------- build $@ ----------
+	$(CC) $< -c $(CFLAGS) -o $@
+	@echo
+
+enclave_u.c: enclave_u.h
+
+enclave_u.h: $(SGX_EDGER8R) ../enclave/enclave.edl
+	@echo ---------- generate $@ ----------
+	$(SGX_EDGER8R) --untrusted ../enclave/enclave.edl --search-path . --search-path $(SGX_SDK)/include
 	@echo
 
 clean:
-	rm -f $(build_objs) $(exec)
+	rm -f $(build_objs) $(OBJ_DIR)/enclave_u.o $(exec)

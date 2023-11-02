@@ -39,6 +39,13 @@ int main(int argc, char **argv) {
     }
     std::cout << "write " << wsize << " bytes" << std::endl;
 
+    ssize_t gsize = api.get_size("hello");
+    if(gsize < 0) {
+        std::cerr << "failed to get file size" << std::endl;
+        return 1;
+    }
+    std::cout << "file size is " << gsize << " bytes" << std::endl;
+
     char buf[64];
     ssize_t rsize = api.get_content("hello", buf, sizeof(buf));
     if (rsize < 0) {

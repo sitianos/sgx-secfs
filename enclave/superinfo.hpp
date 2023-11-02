@@ -1,19 +1,17 @@
+#pragma once
+
 #include "metadata.hpp"
 
 class Superinfo : public Metadata {
   private:
+  public:
     UUID root_dirnode;
     UUID user_table;
     hash_t hash_root_dirnode;
     hash_t hash_user_table;
 
-  public:
-    struct Buffer {
-        uuid_t root_dirnode;
-        uuid_t user_table;
-        hash_t hash_root_dirnode;
-        hash_t hash_user_table;
-    };
-    static Superinfo load_from_buffer(const Buffer& buf);
-    Buffer dump_to_buffer();
+    Superinfo() = default;
+    Superinfo(const superinfo_buffer_t& buf);
+
+    size_t dump(void* buf, size_t size) const override;
 };

@@ -11,6 +11,7 @@ IncludeBlocks: Regroup
 IndentWidth: 4
 ColumnLimit: 100
 PointerAlignment: Left
+AlwaysBreakTemplateDeclarations: Yes
 # ReferenceAlignment: Left
 # IndentExternBlock NoIndent
 # NamespaceIndentation: All

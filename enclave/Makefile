@@ -19,7 +19,7 @@ else
 endif
 Crypto_Library_Name := sgx_tcrypto
 
-Enclave_Include_Paths := -I$(BUILD_DIR)/enclave -I$(SGX_SDK)/include -I$(SGX_SDK)/include/libcxx -I$(SGX_SDK)/include/tlibc 
+Enclave_Include_Paths := $(addprefix -I, . ../include $(SGX_SDK)/include $(SGX_SDK)/include/libcxx $(SGX_SDK)/include/tlibc) $(shell pkg-config fuse3 --cflags)
 
 CFLAGS := -nostdinc -fvisibility=hidden -fpie -fstack-protector -fno-builtin-printf $(Enclave_Include_Paths)
 CXXFLAGS := $(CFLAGS) -nostdinc++
@@ -36,37 +36,45 @@ Enclave_Link_Flags := $(Enclave_Security_Link_Flags) \
 	-Wl,--version-script=$(Enclave_Version_Script)
 
 OBJ_DIR := $(BUILD_DIR)/enclave
-objs := uuid.o superinfo.o dirnode.o ecall.o
+objs := uuid.o metadata.o superinfo.o dirnode.o filenode.o volume.o ecall.o enclave.o
 build_objs := $(addprefix $(OBJ_DIR)/, $(objs))
 signed_enclave_img := $(LIB_DIR)/secfs_enclave.signed.so
 enclave_img := $(LIB_DIR)/secfs_enclave.so
+signing_config := enclave.config.xml
+signing_key ?= $(OBJ_DIR)/sign.key
 
 .PHONY: all clean
 
-all: $(enclave_img)
-
-$(enclave_img): $(OBJ_DIR)/enclave_t.o $(build_objs)
-	@echo ---------- link $@ ----------
-	$(CXX) $^ $(Enclave_Link_Flags) -o $@
-	@echo
+all: $(enclave_img) $(signed_enclave_img)
 
 $(OBJ_DIR):
 	mkdir -p $(OBJ_DIR)
 
-$(build_objs): $(OBJ_DIR)/%.o: %.cpp $(OBJ_DIR)/enclave_t.h
+$(enclave_img): $(build_objs) $(OBJ_DIR)/enclave_t.o
+	@echo ---------- link $@ ----------
+	$(CXX) $^ $(Enclave_Link_Flags) -o $@
+	@echo
+
+$(build_objs): $(OBJ_DIR)/%.o: %.cpp enclave_t.h
 	@echo ---------- build $@ ----------
 	$(CXX) $< -c $(CXXFLAGS) -o $@
 	@echo
 
-$(OBJ_DIR)/enclave_t.o: $(OBJ_DIR)/enclave_t.c
+$(OBJ_DIR)/enclave_t.o: enclave_t.c
 	@echo ---------- build $@ ----------
 	$(CC) $< -c $(CFLAGS) -o $@
 	@echo
 
-$(OBJ_DIR)/enclave_t.c: $(OBJ_DIR)/enclave_t.h
+enclave_t.c: enclave_t.h
 
-$(OBJ_DIR)/enclave_t.h: $(SGX_EDGER8R) enclave.edl
-	$(SGX_EDGER8R) --trusted --trusted-dir $(OBJ_DIR) enclave.edl --search-path . --search-path $(SGX_SDK)/include
+enclave_t.h: $(SGX_EDGER8R) enclave.edl
+	$(SGX_EDGER8R) --trusted enclave.edl --search-path . --search-path $(SGX_SDK)/include
+
+$(signing_key):
+	openssl genrsa -out $@ -3 3072
+
+$(signed_enclave_img): $(enclave_img) $(signing_key)
+	$(SGX_ENCLAVE_SIGNER) sign -key $(signing_key) -enclave $(enclave_img) -out $@ -config $(signing_config)
 
 clean:
-	rm -f $(OBJ_DIR)/enclave_t.* $(build_objs) $(enclave_img) $(signed_enclave_img)
+	rm -f $(build_objs) $(OBJ_DIR)/enclave_t.o $(enclave_img) $(signed_enclave_img)

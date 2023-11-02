@@ -1,22 +1,22 @@
+#include <functional>
 #include <string>
 
 class UUID {
-   public:
+  public:
     unsigned char data[16];
 
     UUID();
     UUID(const UUID& uuid);
-    UUID(const unsigned char *bytes);
+    UUID(const unsigned char* bytes);
     UUID& operator=(const UUID& UUID);
-    void dump(unsigned char *out);
-    void unparse(char *out);
-    void unparse(std::string &out);
+    void dump(unsigned char* out) const;
 
-    // static UUID parse(char *in);
-    // static UUID parse(std::string &in);
+    bool parse(const char* in);
+    bool parse(const std::string& in);
+    void unparse(char* out) const;
+    void unparse(std::string& out) const;
 };
 
-// class Hash {
-//    public:
-//     unsigned char data[32];
-// };
+template <> struct std::hash<UUID> {
+    size_t operator()(const UUID& uid) const;
+};

@@ -1,37 +1,53 @@
 #include "dirnode.hpp"
 
-#include "cstdlib"
+#include <cstring>
 
-Dirnode Dirnode::load_from_buffer(const Dirnode::Buffer& buf) {
-    Dirnode dn;
-    dn.name = buf.name;
-    dn.dirent.resize(buf.entnum);
-    for (size_t i = 0; i < buf.entnum; i++) {
-        dn.dirent[i] = Dirnode::Dirent(buf.entry[i]);
-    }
-    return dn;
+Dirnode::Dirnode(const dirnode_buffer_t& buf)
+    : ino(buf.ino), name(buf.name), dirent(buf.entry, buf.entry + buf.entnum) {
 }
 
-size_t Dirnode::dump_to_buffer(Dirnode::Buffer*& buf) {
-    size_t size = sizeof(Dirnode::Buffer) + sizeof(Dirnode::dirent_t) * dirent.size();
-    buf = (Dirnode::Buffer*)malloc(size);
-    name.copy(buf->name, sizeof(buf->name) - 1);
-    buf->entnum = dirent.size();
+size_t Dirnode::dump(void* buf, size_t size) const {
+    size_t rqsize = sizeof(dirnode_buffer_t) + sizeof(dirent_t) * dirent.size();
+    if (buf == nullptr) {
+        return rqsize;
+    }
+    if (size < rqsize) {
+        return 0;
+    }
+    dirnode_buffer_t* obuf = static_cast<dirnode_buffer_t*>(buf);
+    obuf->ino = ino;
+    std::memset(obuf->name, 0, sizeof(obuf->name));
+    name.copy(obuf->name, sizeof(obuf->name) - 1);
+    obuf->entnum = dirent.size();
     for (size_t i = 0; i < dirent.size(); i++) {
-        dirent[i].dump(buf->entry[i]);
+        dirent[i].dump(obuf->entry[i]);
     }
-    return size;
+    return rqsize;
 }
 
-Dirnode::Dirent::Dirent() {
+void Dirnode::dump_stat(stat_buffer_t* buf) const {
+    buf->ino = ino;
+    buf->mode = T_ST_DIR;
+    buf->nlink = nlink();
+    buf->size = dump(nullptr, 0);
 }
 
-Dirnode::Dirent::Dirent(const Dirnode::dirent_t& dent)
-    : name(dent.name), type(dent.type), uuid(dent.uuid) {
+size_t Dirnode::nlink() const {
+    size_t cnt = 2;
+    for (auto& dent : dirent) {
+        if (dent.type == T_DT_DIR)
+            cnt++;
+    }
+    return cnt;
 }
 
-void Dirnode::Dirent::dump(Dirnode::dirent_t& dent) {
-    name.copy(dent.name, MAX_PATH_LEN);
+Dirnode::Dirent::Dirent(const dirent_t& dent) : ino(dent.ino), name(dent.name), type(dent.type), uuid(dent.uuid) {
+}
+
+void Dirnode::Dirent::dump(dirent_t& dent) const {
+    dent.ino = ino;
+    std::memset(dent.name, 0, sizeof(dent.name));
+    name.copy(dent.name, sizeof(dent.name));
     dent.type = type;
     uuid.dump(dent.uuid);
 }

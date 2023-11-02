@@ -2,20 +2,26 @@
 
 #include <cstring>
 
-Superinfo Superinfo::load_from_buffer(const Superinfo::Buffer& buf) {
-    Superinfo sp;
-    sp.root_dirnode = UUID(buf.root_dirnode);
-    sp.user_table = UUID(buf.user_table);
-    std::memcpy(sp.hash_root_dirnode, buf.hash_root_dirnode, sizeof(hash_t));
-    std::memcpy(sp.hash_user_table, buf.hash_user_table, sizeof(hash_t));
-    return sp;
+Superinfo::Superinfo(const superinfo_buffer_t& buf)
+    : root_dirnode(buf.root_dirnode), user_table(buf.user_table) {
+    std::memcpy(hash_root_dirnode, buf.hash_root_dirnode, sizeof(hash_t));
+    std::memcpy(hash_user_table, buf.hash_user_table, sizeof(hash_t));
 }
 
-Superinfo::Buffer Superinfo::dump_to_buffer() {
-    Superinfo::Buffer buf;
-    root_dirnode.dump(buf.root_dirnode);
-    user_table.dump(buf.user_table);
-    std::memcpy(buf.hash_root_dirnode, hash_root_dirnode, sizeof(hash_t));
-    std::memcpy(buf.hash_user_table, hash_user_table, sizeof(hash_t));
-    return buf;
+size_t Superinfo::dump(void* buf, size_t size) const {
+    size_t rqsize = sizeof(superinfo_buffer_t);
+    if (buf == nullptr) {
+        return rqsize;
+    }
+    if (size < rqsize) {
+        return 0;
+    }
+
+    superinfo_buffer_t* obuf = static_cast<superinfo_buffer_t*>(buf);
+
+    root_dirnode.dump(obuf->root_dirnode);
+    user_table.dump(obuf->user_table);
+    std::memcpy(obuf->hash_root_dirnode, hash_root_dirnode, sizeof(hash_t));
+    std::memcpy(obuf->hash_user_table, hash_user_table, sizeof(hash_t));
+    return rqsize;
 }

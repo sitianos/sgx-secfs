@@ -1,10 +1,11 @@
 {
     "privkey": "",
     "volumekey": "",
+    "enclave_path": "build/lib/secfs_enclave.signed.so",
     "storage": {
         "type": "local",
         "config": {
-            "base_dir": "/tmp/mnt"
+            "base_dir": "/app/sample/vol"
         }
     }
 }

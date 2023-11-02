@@ -1,39 +1,29 @@
+#pragma once
+
 #include "metadata.hpp"
 
 #include <string>
 #include <vector>
 
-#define MAX_PATH_LEN 256
-
-class Dirnode : public Metadata {
+class Dirnode : public Inode {
   private:
   public:
-    enum Type {
-        T_DIR,
-        T_REG,
-        T_LINK,
-    };
-    struct dirent_t {
-        char name[MAX_PATH_LEN];
-        Type type;
-        uuid_t uuid;
-    };
     class Dirent {
       public:
-        Dirent();
+        Dirent() = default;
         Dirent(const dirent_t& dent);
+        ino_t ino;
         std::string name;
-        Type type;
+        dirent_type_t type;
         UUID uuid;
-        void dump(dirent_t& dent);
+        void dump(dirent_t& dent) const;
     };
-    struct Buffer {
-        char name[MAX_PATH_LEN];
-        unsigned int entnum;
-        struct dirent_t entry[];
-    };
+    Dirnode() = default;
+    Dirnode(const dirnode_buffer_t& buf);
+    ino_t ino;
     std::string name;
     std::vector<Dirent> dirent;
-    size_t dump_to_buffer(Buffer*& buf);
-    static Dirnode load_from_buffer(const Buffer& buf);
+    size_t dump(void* buf, size_t size) const override;
+    void dump_stat(stat_buffer_t* buf) const override;
+    size_t nlink() const override;
 };

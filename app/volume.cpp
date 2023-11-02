@@ -40,9 +40,9 @@ int Volume::init_enclave() {
     ret = sgx_create_enclave(enclave_path.c_str(), SGX_DEBUG_FLAG, NULL, NULL, &eid, NULL);
     if (ret != SGX_SUCCESS) {
         std::cerr << enclave_err_msg(ret) << std::endl;
-        return -1;
+        return 0;
     }
-    return 0;
+    return 1;
 }
 
 StorageAPI& Volume::get_api_instance() {
@@ -62,35 +62,41 @@ Volume::~Volume() {
         delete api;
 }
 
-Volume Volume::load_config(const char* config_file) {
+int Volume::load_config(const char* config_file) {
     json config;
     std::ifstream ifs(config_file);
-    Volume vol;
     if (!ifs) {
         std::cerr << "failed to open " << config_file << std::endl;
-        return vol;
+        return 0;
     }
     try {
         config = secfs::json::parse(ifs);
     } catch (std::exception& e) {
         std::cerr << e.what() << std::endl;
-        return vol;
+        return 0;
     }
     if (config.count("enclave_path") == 0 || !config["enclave_path"].is_string()) {
         std::cerr << "invalid enclave_path field" << std::endl;
-        return vol;
+        return 0;
     }
-    vol.enclave_path = config["enclave_path"];
+    enclave_path = config["enclave_path"];
     if (config.count("storage") == 0 || !config["storage"].is_object()) {
         std::cerr << "no storage field" << std::endl;
-        return vol;
+        return 0;
     }
-    if (vol.__load_api_instance(config["storage"]) == nullptr) {
+    if (__load_api_instance(config["storage"]) == nullptr) {
         std::cerr << "failed to load storage config" << std::endl;
-        return vol;
+        return 0;
     }
-    vol.is_loaded = true;
-    return vol;
+    is_loaded = true;
+    return 1;
 }
+
+Volume& Volume::get_instance() {
+    static Volume instance;
+    return instance;
+}
+
+Volume& global_vol = Volume::get_instance();
 
 } // namespace secfs

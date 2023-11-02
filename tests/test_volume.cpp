@@ -8,13 +8,13 @@ int main(int argc, char **argv) {
         std::cerr << "volume config is required" << std::endl;
         return 1;
     }
-    secfs::Volume vol = secfs::Volume::load_config(argv[1]);
+    using secfs::global_vol;
 
-    if (! vol.loaded()) {
+    if (! global_vol.loaded()) {
         std::cerr << "failed to load volume config" << std::endl;
         return 1;
     }
-    secfs::StorageAPI &api = vol.get_api_instance();
+    secfs::StorageAPI &api = global_vol.get_api_instance();
 
     if (api.init() != 1) {
         std::cerr << "failed to initialize storage API" << std::endl;
