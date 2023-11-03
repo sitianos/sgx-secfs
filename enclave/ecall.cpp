@@ -1,11 +1,11 @@
 #include "dirnode.hpp"
-#include "filenode.hpp"
-#include "superinfo.hpp"
-
 #include "enclave.hpp"
 #include "enclave_t.h"
+#include "filenode.hpp"
+#include "superinfo.hpp"
 #include "volume.hpp"
 
+#include <errno.h>
 #include <mbusafecrt.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -22,7 +22,7 @@ static int printf(const char* fmt, ...) {
 }
 
 static bool decrypt_buffer(Metadata::Type type, const UUID& uuid, void* obuf, const void* ibuf,
-                    size_t isize) {
+                           size_t isize) {
     memcpy_verw_s(obuf, isize, ibuf, isize);
     return true;
 }
@@ -38,6 +38,31 @@ static bool remove_metadata(const UUID& uuid) {
         return false;
     }
     return true;
+}
+
+template <typename T>
+static T* load_metadata(const UUID& uuid) {
+    void* buf;
+    ssize_t size;
+    char filename[40];
+    sgx_status_t status;
+
+    uuid.unparse(filename);
+
+    status = ocall_fetch_file(filename, &buf, &size);
+    if (status != SGX_SUCCESS) {
+        printf("SGX Error in %s(): 0x%4x %s\n", __func__, status, enclave_err_msg(status));
+        return nullptr;
+    }
+    if (size < 0) {
+        printf("failed to fetch file\n");
+        return nullptr;
+    }
+
+    // decryption here
+
+    T* metadata = Metadata::create<T>(uuid, buf, size);
+    return metadata;
 }
 
 static bool save_metadata(const Metadata* metadata) {
@@ -157,39 +182,15 @@ void ecall_debug() {
     delete dir1;
 }
 
-// Dirnode& get_or_fetch_dirnode(const UUID& uuid) {
-//     auto iter = dirnode_map.find(parent);
-//     if (iter == dirnode_map.end()) {
-//         return;
-//     }
-//     char filename[36];
-//     uuid.unparse(filename);
-//     sgx_status_t status;
-//     void* ubuf;
-//     ssize_t fsize;
-//     status = ocall_fetch_file(filename, &ubuf, &fsize);
-//     if (status != SGX_SUCCESS) {
-//         printf("SGX Error in %s(): 0x%4x %s\n", __func__, status, enclave_err_msg(status));
-//         return;
-//     }
-//     if (fsize < 0) {
-//         printf("failed to fetch file\n");
-//         return;
-//     }
-//     void *buf = malloc(fsize);
-//     Dirnode* dn_p =
-//         static_cast<Dirnode*>(Metadata::from_buffer(Metadata::M_Dirnode, uuid, buf, fsize));
-//     return dirnode_map[dirnode_ino] = std::shared_ptr<Dirnode>(dn_p);
-// }
-
-void ecall_fs_lookup(ino_t parent, const char* name, ino_t* ino, stat_buffer_t* statbuf) {
+int ecall_fs_lookup(ino_t parent, const char* name, ino_t* ino, stat_buffer_t* statbuf) {
     *ino = 0;
+
     decltype(dirnode_map)::iterator iter = dirnode_map.find(parent);
     if (iter == dirnode_map.end()) {
-        return;
+        return ENOENT;
     }
-    if(iter->second->get_type() != Metadata::M_Dirnode) {
-        return;
+    if (iter->second->get_type() != Metadata::M_Dirnode) {
+        return ENOENT;
     }
     std::shared_ptr<Dirnode> parent_dn = std::dynamic_pointer_cast<Dirnode>(iter->second);
     char filename[36];
@@ -199,61 +200,61 @@ void ecall_fs_lookup(ino_t parent, const char* name, ino_t* ino, stat_buffer_t* 
     for (decltype(Dirnode::dirent)::iterator dent = parent_dn->dirent.begin();
          dent != parent_dn->dirent.end(); dent++) {
         if (dent->name == name) {
-            dent->uuid.unparse(filename);
-            status = ocall_fetch_file(filename, &ubuf, &fsize);
-            if (status != SGX_SUCCESS) {
-                printf("SGX Error in %s(): 0x%4x %s\n", __func__, status, enclave_err_msg(status));
-                return;
-            }
-            if (fsize < 0) {
-                printf("failed to fetch file\n");
-                return;
-            }
             Inode* ino_p;
-            if(dent->type == T_DT_DIR) {
-                Dirnode* dir_p = Metadata::from_buffer<Dirnode>(dent->uuid, ubuf, fsize);
-                dirnode_map[dirnode_ino] = std::shared_ptr<Dirnode>(dir_p);
+            if (dent->type == T_DT_DIR) {
+                Dirnode* dir_p = load_metadata<Dirnode>(dent->uuid);
+                // Dirnode* dir_p = Metadata::create<Dirnode>(dent->uuid, ubuf, fsize);
                 ino_p = dir_p;
-            } else if(dent->type == T_DT_REG) {
-                Filenode* file_p = Metadata::from_buffer<Filenode>(dent->uuid, ubuf, fsize);
-                dirnode_map[dirnode_ino] = std::shared_ptr<Filenode>(file_p);
+            } else if (dent->type == T_DT_REG) {
+                Filenode* file_p = load_metadata<Filenode>(dent->uuid);
+                // Filenode* file_p = Metadata::create<Filenode>(dent->uuid, ubuf, fsize);
                 ino_p = file_p;
             } else {
                 printf("only file and directory lookup is supported\n");
-                return;
+                return ENOENT;
+            }
+            if(ino_p == nullptr) {
+                printf("failed to load metadata\n");
+                delete ino_p;
+                return ENONET;
             }
 
             ino_p->dump_stat(statbuf);
+            dirnode_map[dirnode_ino] = std::shared_ptr<Inode>(ino_p);
 
             *ino = dirnode_ino;
             dirnode_ino++;
-            return;
+            return 0;
         }
     }
     printf("%s is not found\n", name);
-    return;
+    return ENOENT;
 }
 
-void ecall_fs_getattr(ino_t ino, stat_buffer_t* statbuf) {
+int ecall_fs_getattr(ino_t ino, stat_buffer_t* statbuf) {
     decltype(dirnode_map)::iterator iter = dirnode_map.find(ino);
     if (iter == dirnode_map.end()) {
-        return;
+        return ENOENT;
     }
     iter->second->dump_stat(statbuf);
+    return 0;
 }
 
-void ecall_fs_mkdir(ino_t parent, const char* name, mode_t mode, fuse_ino_t* ino,
-                    struct stat_buffer_t* statbuf) {
+int ecall_fs_mkdir(ino_t parent, const char* name, mode_t mode, fuse_ino_t* ino,
+                   struct stat_buffer_t* statbuf) {
     *ino = 0;
     decltype(dirnode_map)::iterator iter = dirnode_map.find(parent);
     if (iter == dirnode_map.end()) {
-        return;
+        return ENOENT;
+    }
+    if (iter->second->get_type() != Metadata::M_Dirnode) {
+        return ENOTDIR;
     }
     std::shared_ptr<Dirnode> parent_dn = std::dynamic_pointer_cast<Dirnode>(iter->second);
     for (decltype(Dirnode::dirent)::iterator dent = parent_dn->dirent.begin();
          dent != parent_dn->dirent.end(); dent++) {
         if (dent->name == name) {
-            return; // file alrealdy exists
+            return EEXIST;
         }
     }
     UUID new_uuid;
@@ -277,42 +278,56 @@ void ecall_fs_mkdir(ino_t parent, const char* name, mode_t mode, fuse_ino_t* ino
     new_dn->dump_stat(statbuf);
 
     save_metadata(new_dn.get());
-    return;
+    return 0;
 }
 
-void ecall_fs_rmdir(fuse_ino_t parent, const char* name) {
+int ecall_fs_rmdir(fuse_ino_t parent, const char* name) {
     decltype(dirnode_map)::iterator iter = dirnode_map.find(parent);
     if (iter == dirnode_map.end()) {
-        return;
+        return ENOENT;
+    }
+    if (iter->second->get_type() != Metadata::M_Dirnode) {
+        return ENOTDIR;
     }
     std::shared_ptr<Dirnode> parent_dn = std::dynamic_pointer_cast<Dirnode>(iter->second);
     for (decltype(Dirnode::dirent)::iterator dent = parent_dn->dirent.begin();
          dent != parent_dn->dirent.end(); dent++) {
         if (dent->name == name) {
-            if(! remove_metadata(dent->uuid)){
-                printf("failed to remove metadata\n");
-                return;
+            if (dent->type != T_DT_DIR) {
+                return ENOTDIR;
             }
+            Dirnode* dir_p = load_metadata<Dirnode>(dent->uuid);
+            if(dir_p){
+                if(dir_p->dirent.size() != 0) {
+                    return ENOTEMPTY;
+                }
+                if (!remove_metadata(dent->uuid)) {
+                    printf("failed to remove metadata\n");
+                    return EACCES;
+                }
+            }
+
             parent_dn->dirent.erase(dent);
-            if(! save_metadata(parent_dn.get())){
+            if (!save_metadata(parent_dn.get())) {
                 printf("failed to save metadata\n");
+                return EACCES;
             }
-            return;
+            return 0;
         }
     }
     printf("%s is not found\n", name);
-    return;
+    return ENOENT;
 }
 
-void ecall_fs_get_dirent(ino_t ino, dirent_t* buf, size_t count, ssize_t* getcount) {
+int ecall_fs_get_dirent(ino_t ino, dirent_t* buf, size_t count, ssize_t* getcount) {
     auto iter = dirnode_map.find(ino);
     if (iter == dirnode_map.end()) {
-        *getcount = -1;
-        return;
+        *getcount = 0;
+        return ENOENT;
     }
     if (iter->second->get_type() != Metadata::M_Dirnode) {
-        *getcount = -1;
-        return;
+        *getcount = 0;
+        return ENOTDIR;
     }
     std::shared_ptr<Dirnode> parent_dn = std::dynamic_pointer_cast<Dirnode>(iter->second);
     size_t i = 0;
@@ -323,4 +338,5 @@ void ecall_fs_get_dirent(ino_t ino, dirent_t* buf, size_t count, ssize_t* getcou
             break;
     }
     *getcount = i;
+    return 0;
 }

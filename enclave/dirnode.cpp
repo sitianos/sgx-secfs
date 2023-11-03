@@ -3,7 +3,8 @@
 #include <cstring>
 
 Dirnode::Dirnode(const dirnode_buffer_t& buf)
-    : ino(buf.ino), name(buf.name), dirent(buf.entry, buf.entry + buf.entnum) {
+    : name(buf.name), dirent(buf.entry, buf.entry + buf.entnum) {
+    ino = buf.ino;
 }
 
 size_t Dirnode::dump(void* buf, size_t size) const {

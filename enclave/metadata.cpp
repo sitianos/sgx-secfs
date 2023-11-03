@@ -6,7 +6,7 @@
 
 
 template <>
-Dirnode* Metadata::from_buffer<Dirnode>(const UUID& uuid, const void* buf, size_t size) {
+Dirnode* Metadata::create<Dirnode>(const UUID& uuid, const void* buf, size_t size) {
     Dirnode* ret = nullptr;
     if(buf) {
         ret = new Dirnode(*static_cast<const dirnode_buffer_t*>(buf));
@@ -19,7 +19,7 @@ Dirnode* Metadata::from_buffer<Dirnode>(const UUID& uuid, const void* buf, size_
 }
 
 template <>
-Filenode* Metadata::from_buffer<Filenode>(const UUID& uuid, const void* buf, size_t size) {
+Filenode* Metadata::create<Filenode>(const UUID& uuid, const void* buf, size_t size) {
     Filenode* ret = nullptr;
     if(buf) {
         ret = new Filenode(*static_cast<const filenode_buffer_t*>(buf));
@@ -27,22 +27,6 @@ Filenode* Metadata::from_buffer<Filenode>(const UUID& uuid, const void* buf, siz
         ret = new Filenode();
     }
     ret->type = Metadata::M_Filenode;
-    ret->uuid = uuid;
-    return ret;
-}
-
-template <>
-Dirnode* Metadata::create<Dirnode>(const UUID& uuid) {
-    Dirnode* ret = new Dirnode();
-    ret->type = M_Dirnode;
-    ret->uuid = uuid;
-    return ret;
-}
-
-template <>
-Filenode* Metadata::create<Filenode>(const UUID& uuid) {
-    Filenode* ret = new Filenode();
-    ret->type = M_Filenode;
     ret->uuid = uuid;
     return ret;
 }

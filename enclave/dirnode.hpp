@@ -20,7 +20,7 @@ class Dirnode : public Inode {
     };
     Dirnode() = default;
     Dirnode(const dirnode_buffer_t& buf);
-    ino_t ino;
+
     std::string name;
     std::vector<Dirent> dirent;
     size_t dump(void* buf, size_t size) const override;

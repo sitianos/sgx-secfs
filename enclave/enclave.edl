@@ -3,11 +3,11 @@ enclave {
     include "bridge.hpp"
 
     trusted {
-        public void ecall_fs_getattr(ino_t ino, [out] struct stat_buffer_t* statbuf);
-        public void ecall_fs_lookup(ino_t parent, [in, string] const char* name, [out] fuse_ino_t* ino, [out] struct stat_buffer_t* statbuf);
-        public void ecall_fs_mkdir(ino_t parent, [in, string] const char* name, mode_t mode, [out] fuse_ino_t* ino, [out] struct stat_buffer_t* statbuf);
-        public void ecall_fs_rmdir(fuse_ino_t parent, [in, string] const char *name);
-        public void ecall_fs_get_dirent(ino_t ino, [out, count = count] struct dirent_t* buf, size_t count, [out] ssize_t *getcount);
+        public int ecall_fs_getattr(ino_t ino, [out] struct stat_buffer_t* statbuf);
+        public int ecall_fs_lookup(ino_t parent, [in, string] const char* name, [out] fuse_ino_t* ino, [out] struct stat_buffer_t* statbuf);
+        public int ecall_fs_mkdir(ino_t parent, [in, string] const char* name, mode_t mode, [out] fuse_ino_t* ino, [out] struct stat_buffer_t* statbuf);
+        public int ecall_fs_rmdir(fuse_ino_t parent, [in, string] const char *name);
+        public int ecall_fs_get_dirent(ino_t ino, [out, count = count] struct dirent_t* buf, size_t count, [out] ssize_t *getcount);
         public void ecall_print(void);
         public void ecall_debug(void);
     };

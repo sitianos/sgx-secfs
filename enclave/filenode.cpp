@@ -1,6 +1,7 @@
 #include "filenode.hpp"
 
-Filenode::Filenode(const filenode_buffer_t &buf): ino(buf.ino), size(buf.size){
+Filenode::Filenode(const filenode_buffer_t &buf): size(buf.size){
+    ino = buf.ino;
 }
 
 size_t Filenode::dump(void* buf, size_t size) const {
