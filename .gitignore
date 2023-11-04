@@ -1,3 +1,8 @@
 *.o
 build/*
+include/nlohmann
 .vscode
+enclave_u.c
+enclave_u.h
+enclave_t.c
+enclave_t.h

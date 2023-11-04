@@ -144,7 +144,7 @@ void ecall_debug() {
     save_metadata(file1);
     delete file1;
 
-    dirnode_map[1] = std::shared_ptr<Dirnode>(root);
+    inode_map[1] = std::shared_ptr<Dirnode>(root);
     save_metadata(root);
 
     Dirnode* dir1 = Metadata::create<Dirnode>(uuid2);
@@ -180,13 +180,15 @@ void ecall_debug() {
 
     save_metadata(dir1);
     delete dir1;
+
+    max_ino = 6;
 }
 
 int ecall_fs_lookup(ino_t parent, const char* name, ino_t* ino, stat_buffer_t* statbuf) {
     *ino = 0;
 
-    decltype(dirnode_map)::iterator iter = dirnode_map.find(parent);
-    if (iter == dirnode_map.end()) {
+    decltype(inode_map)::iterator iter = inode_map.find(parent);
+    if (iter == inode_map.end()) {
         return ENOENT;
     }
     if (iter->second->get_type() != Metadata::M_Dirnode) {
@@ -201,6 +203,15 @@ int ecall_fs_lookup(ino_t parent, const char* name, ino_t* ino, stat_buffer_t* s
          dent != parent_dn->dirent.end(); dent++) {
         if (dent->name == name) {
             Inode* ino_p;
+
+            iter = inode_map.find(dent->ino);
+            if(iter != inode_map.end()) {
+                ino_p = iter->second.get();
+                ino_p->dump_stat(statbuf);
+                *ino = dent->ino;
+                return 0;
+            }
+
             if (dent->type == T_DT_DIR) {
                 Dirnode* dir_p = load_metadata<Dirnode>(dent->uuid);
                 // Dirnode* dir_p = Metadata::create<Dirnode>(dent->uuid, ubuf, fsize);
@@ -220,10 +231,9 @@ int ecall_fs_lookup(ino_t parent, const char* name, ino_t* ino, stat_buffer_t* s
             }
 
             ino_p->dump_stat(statbuf);
-            dirnode_map[dirnode_ino] = std::shared_ptr<Inode>(ino_p);
+            inode_map[dent->ino] = std::shared_ptr<Inode>(ino_p);
 
-            *ino = dirnode_ino;
-            dirnode_ino++;
+            *ino = dent->ino;
             return 0;
         }
     }
@@ -232,8 +242,8 @@ int ecall_fs_lookup(ino_t parent, const char* name, ino_t* ino, stat_buffer_t* s
 }
 
 int ecall_fs_getattr(ino_t ino, stat_buffer_t* statbuf) {
-    decltype(dirnode_map)::iterator iter = dirnode_map.find(ino);
-    if (iter == dirnode_map.end()) {
+    decltype(inode_map)::iterator iter = inode_map.find(ino);
+    if (iter == inode_map.end()) {
         return ENOENT;
     }
     iter->second->dump_stat(statbuf);
@@ -243,8 +253,8 @@ int ecall_fs_getattr(ino_t ino, stat_buffer_t* statbuf) {
 int ecall_fs_mkdir(ino_t parent, const char* name, mode_t mode, fuse_ino_t* ino,
                    struct stat_buffer_t* statbuf) {
     *ino = 0;
-    decltype(dirnode_map)::iterator iter = dirnode_map.find(parent);
-    if (iter == dirnode_map.end()) {
+    decltype(inode_map)::iterator iter = inode_map.find(parent);
+    if (iter == inode_map.end()) {
         return ENOENT;
     }
     if (iter->second->get_type() != Metadata::M_Dirnode) {
@@ -259,22 +269,22 @@ int ecall_fs_mkdir(ino_t parent, const char* name, mode_t mode, fuse_ino_t* ino,
     }
     UUID new_uuid;
     std::shared_ptr<Dirnode> new_dn(Metadata::create<Dirnode>(new_uuid));
-    new_dn->ino = 30;
+    new_dn->ino = max_ino;
     new_dn->name = name;
     new_dn->dirent.resize(0);
 
     Dirnode::Dirent new_dirent;
-    new_dirent.ino = 30;
+    new_dirent.ino = max_ino;
     new_dirent.name = name;
     new_dirent.type = T_DT_DIR;
     new_dirent.uuid = new_uuid;
     parent_dn->dirent.push_back(new_dirent);
     save_metadata(parent_dn.get());
-    // dirnode_map.erase(iter);
+    // inode_map.erase(iter);
 
-    dirnode_map[dirnode_ino] = new_dn;
-    *ino = dirnode_ino;
-    dirnode_ino++;
+    inode_map[max_ino] = new_dn;
+    *ino = max_ino;
+    max_ino++;
     new_dn->dump_stat(statbuf);
 
     save_metadata(new_dn.get());
@@ -282,8 +292,8 @@ int ecall_fs_mkdir(ino_t parent, const char* name, mode_t mode, fuse_ino_t* ino,
 }
 
 int ecall_fs_rmdir(fuse_ino_t parent, const char* name) {
-    decltype(dirnode_map)::iterator iter = dirnode_map.find(parent);
-    if (iter == dirnode_map.end()) {
+    decltype(inode_map)::iterator iter = inode_map.find(parent);
+    if (iter == inode_map.end()) {
         return ENOENT;
     }
     if (iter->second->get_type() != Metadata::M_Dirnode) {
@@ -320,8 +330,8 @@ int ecall_fs_rmdir(fuse_ino_t parent, const char* name) {
 }
 
 int ecall_fs_get_dirent(ino_t ino, dirent_t* buf, size_t count, ssize_t* getcount) {
-    auto iter = dirnode_map.find(ino);
-    if (iter == dirnode_map.end()) {
+    auto iter = inode_map.find(ino);
+    if (iter == inode_map.end()) {
         *getcount = 0;
         return ENOENT;
     }

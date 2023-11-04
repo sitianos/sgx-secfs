@@ -15,6 +15,7 @@ static void secfs_help() {
 
 static const struct fuse_lowlevel_ops secfs_oper = {
     .lookup = secfs_lookup,
+    .forget = secfs_forget,
     .getattr = secfs_getattr,
     .mkdir = secfs_mkdir,
     .rmdir = secfs_rmdir,

@@ -18,11 +18,11 @@ class Metadata {
 
   public:
     UUID uuid;
-    // if buf == nullptr, returns required size
-    // if size < required size, returns 0
     inline Type get_type() const {
         return type;
     };
+    // if buf == nullptr, returns required size
+    // if size < required size, returns 0
     virtual size_t dump(void* buf, size_t size) const = 0;
     size_t dump_to_buffer(void* buf, size_t size) const;
 

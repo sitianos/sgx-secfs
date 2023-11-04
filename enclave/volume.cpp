@@ -1,4 +1,4 @@
 #include "volume.hpp"
 
-std::unordered_map<ino_t, std::shared_ptr<Inode>> dirnode_map;
-ino_t dirnode_ino = 2;
+std::unordered_map<ino_t, std::shared_ptr<Inode>> inode_map;
+ino_t max_ino = 2;
