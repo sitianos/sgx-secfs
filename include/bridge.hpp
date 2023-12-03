@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <sys/types.h>
 #define MAX_PATH_LEN 256
+#define CHUNKSIZE 4096
 
 #ifdef __cplusplus
 #include <cstddef>
@@ -45,7 +46,7 @@ struct chunk_t {
 struct filenode_buffer_t {
     ino_t ino;
     size_t size;
-    size_t chunknum;
+    size_t entnum;
     struct chunk_t entry[];
 };
 

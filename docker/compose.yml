@@ -20,4 +20,4 @@ services:
     environment:
      - LD_LIBRARY_PATH=/opt/intel/sgxsdk/lib64
     command:
-      cat
+      bash

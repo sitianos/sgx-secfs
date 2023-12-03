@@ -1,5 +1,7 @@
 # Fuse Operations of Filesystem
 
+functions below of [fuse_lowlevel_ops](https://libfuse.github.io/doxygen/structfuse__lowlevel__ops.html) structure are defined
+
 ### lookup
 - looks up child inode with parent inode number and child name
 -  within enclave
@@ -7,16 +9,16 @@
     - fetch corresponding inode file from storage if
     - cache this inode
     - increment reference count
-- returns inode number and attributes
+- returns child inode number and attributes
 
 ### forget
-- decreases refernce count of given inode
+- decreases reference count of given inode
 - within enclave
-    - if refernce count becomes 0, corresponding cache is removed from enclave
+    - if reference count becomes 0, corresponding cache will be removed from enclave
 
 ### getattr
 - get stat of given inode
-- operates almost the same as lookup
+- operation is almost the same as lookup
 
 ### setattr
 
@@ -49,14 +51,47 @@
 ### (link)
 
 ### open
+- opens file with flags for writing, reading or both
+- within enclave
+    - checks by given flags if user has access permission to the file
 
 ### read
+- reads data of opened file to given buffer with offset and size
+- within enclave
+    - if required chunks are not stored on local, fetch them from storage
+    - check integrity of them
+    - unset modified bit of each fetched chunk
+- returns requested data and its size
 
 ### write
+- writes given data to opened file with offset and size
+- within enclave
+    - write data to local chunk
+    - if only part of the chunk is written, fetch the chunk from storage in advance
+    - set modified bit of each modified chunk
+- returns size of written data
 
 ### flush
+- closes opened file
+- within enclave
+    - save chunks whose modified bit is set to storage
+    - unset modified bit
 
 ### release
+
+### opendir
+- opens directory with its inode number
+- within enclave
+    - check read permission to directory
+    - get directory entries from cache
+
+### readdir
+- gets directory entries of opened directory
+- returns entries fetched on opendir
+- if needed, fetches additional entries from enclave
+
+### releasedir
+- closes directory opened with opendir
 
 ### setxattr
 
@@ -69,17 +104,3 @@
 ### access
 
 ### create
-
-### opendir
-- opens directory with its inode number
-- within enclave
-    - check if read operation to directory is permitted
-    - get dirent from its cache
-
-### readdir
-- gets directory entries of opened directory
-- returns entries fetched on opendir
-- if needed, fetches additional entries from enclave
-
-### releasedir
-- closes directory opened with opendir

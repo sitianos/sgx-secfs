@@ -5,7 +5,7 @@ class UUID {
   public:
     unsigned char data[16];
 
-    UUID();
+    UUID(bool rand = true);
     UUID(const UUID& uuid);
     UUID(const unsigned char* bytes);
     UUID& operator=(const UUID& UUID);

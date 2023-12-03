@@ -18,11 +18,12 @@ class Dirnode : public Inode {
         UUID uuid;
         void dump(dirent_t& dent) const;
     };
+    std::string name;
+    std::vector<Dirent> dirent;
+
     Dirnode() = default;
     Dirnode(const dirnode_buffer_t& buf);
 
-    std::string name;
-    std::vector<Dirent> dirent;
     size_t dump(void* buf, size_t size) const override;
     void dump_stat(stat_buffer_t* buf) const override;
     size_t nlink() const override;

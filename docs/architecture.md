@@ -3,8 +3,8 @@
 ## Filesystem Layers
 
 1. fuse layer
-   - operates filesystem in response to corresponding to system calls of filesystem
-   - implemented by using fuse lowlevel API
+    - operates filesystem in response to corresponding to system calls of filesystem
+    - implemented by using fuse lowlevel API
 
 1. enclave layer
     - performs main operations which is related to confidentiality and integrity of filesystem such as user authentication, access permission checks, file encryption/decryption and integrity checks
@@ -54,8 +54,6 @@
     1. filenode
         - derived class of inode
         - stores information of file
-        1. file stat
-        1. ACLs
         1. chunk list (direct/indirect addressing or adjacency list)
   
     1. (chunk entry)

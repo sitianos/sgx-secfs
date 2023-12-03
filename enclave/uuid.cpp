@@ -5,8 +5,11 @@
 #include <cstdio>
 #include <cstring>
 
-UUID::UUID() {
-    sgx_read_rand(data, 16);
+UUID::UUID(bool rand) {
+    if (rand)
+        sgx_read_rand(data, sizeof(data));
+    else
+        std::memset(data, 0, sizeof(data));
 }
 
 UUID::UUID(const UUID& uuid) : UUID(uuid.data) {

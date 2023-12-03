@@ -17,7 +17,6 @@ static void copy_statbuf(struct stat& st, const struct stat_buffer_t& statbuf) {
 }
 
 void secfs_lookup(fuse_req_t req, fuse_ino_t parent, const char* name) {
-    (void)req;
     struct fuse_entry_param ep;
     fuse_ino_t ino;
     sgx_status_t sgxstat;
@@ -40,13 +39,12 @@ void secfs_lookup(fuse_req_t req, fuse_ino_t parent, const char* name) {
     }
 }
 
-void secfs_forget(fuse_req_t req, fuse_ino_t ino, uint64_t nlookup){
+void secfs_forget(fuse_req_t req, fuse_ino_t ino, uint64_t nlookup) {
     (void)req;
     fuse_log(FUSE_LOG_DEBUG, "forget(ino=%ld, nlookup=%ld)\n", ino, nlookup);
 }
 
 void secfs_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info* fi) {
-    (void)req;
     (void)fi;
     sgx_status_t sgxstat;
     int err;
@@ -66,7 +64,6 @@ void secfs_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info* fi) {
 }
 
 void secfs_mkdir(fuse_req_t req, fuse_ino_t parent, const char* name, mode_t mode) {
-    (void)req;
     struct fuse_entry_param ep;
     sgx_status_t sgxstat;
     int err;
@@ -88,7 +85,6 @@ void secfs_mkdir(fuse_req_t req, fuse_ino_t parent, const char* name, mode_t mod
 }
 
 void secfs_rmdir(fuse_req_t req, fuse_ino_t parent, const char* name) {
-    (void)req;
     sgx_status_t sgxstat;
     int err;
 
@@ -96,15 +92,73 @@ void secfs_rmdir(fuse_req_t req, fuse_ino_t parent, const char* name) {
     if (sgxstat != SGX_SUCCESS) {
         std::cerr << enclave_err_msg(sgxstat) << std::endl;
         fuse_reply_err(req, ENOENT);
+    } else {
+        fuse_reply_err(req, err);
+    }
+}
+
+void secfs_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info* fi) {
+    (void)ino;
+    fuse_reply_open(req, fi);
+}
+
+void secfs_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fuse_file_info* fi) {
+    (void)fi;
+    sgx_status_t sgxstat;
+    int err;
+    fuse_log(FUSE_LOG_DEBUG, "read(ino=%ld, size=%ld, off=%ld)\n", ino, size, off);
+
+    char* buf = static_cast<char*>(malloc(size));
+    size_t rsize = size;
+
+    sgxstat = ecall_fs_read(secfs::global_vol.eid, &err, ino, buf, off, &rsize);
+    if (sgxstat != SGX_SUCCESS) {
+        std::cerr << enclave_err_msg(sgxstat) << std::endl;
+        fuse_reply_err(req, ENOENT);
     } else if (err) {
         fuse_reply_err(req, err);
     } else {
-        fuse_reply_err(req, 0);
+        fuse_reply_buf(req, buf, rsize);
+    }
+
+    free(buf);
+}
+
+void secfs_write(fuse_req_t req, fuse_ino_t ino, const char* buf, size_t size, off_t off,
+                 struct fuse_file_info* fi) {
+    (void)fi;
+    sgx_status_t sgxstat;
+    int err;
+    fuse_log(FUSE_LOG_DEBUG, "write(ino=%ld, size=%ld, off=%ld)\n", ino, size, off);
+
+    size_t wsize = size;
+
+    sgxstat = ecall_fs_write(secfs::global_vol.eid, &err, ino, buf, off, &wsize);
+    if (sgxstat != SGX_SUCCESS) {
+        std::cerr << enclave_err_msg(sgxstat) << std::endl;
+        fuse_reply_err(req, ENOENT);
+    } else if (err) {
+        fuse_reply_err(req, err);
+    } else {
+        fuse_reply_write(req, wsize);
+    }
+}
+
+void secfs_flush(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info* fi) {
+    (void)fi;
+    sgx_status_t sgxstat;
+    int err;
+
+    sgxstat = ecall_fs_flush(secfs::global_vol.eid, &err, ino);
+    if (sgxstat != SGX_SUCCESS) {
+        std::cerr << enclave_err_msg(sgxstat) << std::endl;
+        fuse_reply_err(req, ENOENT);
+    } else {
+        fuse_reply_err(req, err);
     }
 }
 
 void secfs_opendir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info* fi) {
-    (void)req;
     sgx_status_t sgxstat;
     int err;
     size_t count = 16;
@@ -131,7 +185,6 @@ void secfs_opendir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info* fi) {
 
 void secfs_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t offset,
                    struct fuse_file_info* fi) {
-    (void)req;
     fuse_log(FUSE_LOG_DEBUG, "readdir(ino=%ld, size=%ld, offset=%ld)\n", ino, size, offset);
     size_t rem = size;
     size_t entsize;
@@ -159,7 +212,6 @@ void secfs_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t offset,
 }
 
 void secfs_releasedir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info* fi) {
-    (void)req;
     (void)ino;
     delete reinterpret_cast<std::vector<dirent_t>*>(fi->fh);
     fuse_reply_err(req, 0);

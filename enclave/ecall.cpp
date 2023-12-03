@@ -5,10 +5,12 @@
 #include "superinfo.hpp"
 #include "volume.hpp"
 
-#include <errno.h>
+#include <algorithm>
+#include <cerrno>
+#include <cstdarg>
+#include <cstdio>
+#include <mbedtls/sha256.h>
 #include <mbusafecrt.h>
-#include <stdarg.h>
-#include <stdio.h>
 
 static int printf(const char* fmt, ...) {
     const size_t bufsize = 256;
@@ -19,6 +21,11 @@ static int printf(const char* fmt, ...) {
     va_end(ap);
     ocall_print_string(buf);
     return 0;
+}
+
+static void hexdump(const void* bytes, size_t len, char* out) {
+    for (int i = 0; i < len; i++)
+        snprintf(out + i * 2, 3, "%02x", *((char*)bytes + i));
 }
 
 static bool decrypt_buffer(Metadata::Type type, const UUID& uuid, void* obuf, const void* ibuf,
@@ -91,31 +98,65 @@ static bool save_metadata(const Metadata* metadata) {
     return true;
 }
 
-void ecall_print() {
+static ssize_t load_chunk(Filenode::Chunk& chunk) {
+    void* obuf;
+    ssize_t size;
+    char filename[40];
     sgx_status_t status;
-    printf("test string %d\n", 10);
-    // void* buf;
-    // ssize_t size;
-    // status = ocall_fetch_file("testfile", &buf, &size);
-    // if (status != SGX_SUCCESS) {
-    //     printf("SGX Error in %s(): %s\n", __func__, enclave_err_msg(status));
-    //     return;
-    // }
-    // if (size < 0) {
-    //     printf("failed to fetch testfile\n");
-    //     return;
-    // }
-    // printf("get %ld bytes\n", size);
-    // char* ebuf = (char*)malloc(size);
-    // memcpy_s(ebuf, size, buf, size);
-    // status = ocall_dump_file("dumpfile", ebuf, size);
-    // if (status != SGX_SUCCESS) {
-    //     printf("SGX Error in %s(): %s\n", __func__, enclave_err_msg(status));
-    //     return;
-    // }
+
+    chunk.uuid.unparse(filename);
+
+    status = ocall_fetch_file(filename, &obuf, &size);
+    if (status != SGX_SUCCESS) {
+        printf("SGX Error in %s(): 0x%4x %s\n", __func__, status, enclave_err_msg(status));
+        return -1;
+    }
+    if (size < 0) {
+        printf("failed to fetch chunk\n");
+        return -1;
+    }
+
+    if (chunk.mem == nullptr) {
+        chunk.mem = static_cast<unsigned char*>(malloc(CHUNKSIZE));
+    }
+
+    // decryption here
+    memcpy_verw_s(chunk.mem, CHUNKSIZE, obuf, size);
+    chunk.modified = false;
+
+    return size;
+}
+
+static ssize_t save_chunk(Filenode::Chunk& chunk) {
+    void* obuf;
+    char filename[40];
+    sgx_status_t status;
+
+    obuf = malloc(CHUNKSIZE);
+
+    // encryption here
+    memcpy_verw_s(obuf, CHUNKSIZE, chunk.mem, CHUNKSIZE);
+
+    chunk.uuid.unparse(filename);
+
+    status = ocall_dump_file(filename, obuf, CHUNKSIZE);
+    if (status != SGX_SUCCESS) {
+        printf("SGX Error in %s(): 0x%4x %s\n", __func__, status, enclave_err_msg(status));
+        return -1;
+    }
+    chunk.modified = false;
+    free(obuf);
+    return CHUNKSIZE;
 }
 
 void ecall_debug() {
+    unsigned char str[] = "hello";
+    unsigned char hash[32];
+    mbedtls_sha256(str, 5, hash, 0);
+    char hex[65];
+    hexdump(hash, 32, hex);
+    printf("hash = %s\n", hex);
+
     uuid_t uid = {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
     UUID uuid1(uid);
@@ -205,7 +246,7 @@ int ecall_fs_lookup(ino_t parent, const char* name, ino_t* ino, stat_buffer_t* s
             Inode* ino_p;
 
             iter = inode_map.find(dent->ino);
-            if(iter != inode_map.end()) {
+            if (iter != inode_map.end()) {
                 ino_p = iter->second.get();
                 ino_p->dump_stat(statbuf);
                 *ino = dent->ino;
@@ -224,7 +265,7 @@ int ecall_fs_lookup(ino_t parent, const char* name, ino_t* ino, stat_buffer_t* s
                 printf("only file and directory lookup is supported\n");
                 return ENOENT;
             }
-            if(ino_p == nullptr) {
+            if (ino_p == nullptr) {
                 printf("failed to load metadata\n");
                 delete ino_p;
                 return ENONET;
@@ -307,8 +348,8 @@ int ecall_fs_rmdir(fuse_ino_t parent, const char* name) {
                 return ENOTDIR;
             }
             Dirnode* dir_p = load_metadata<Dirnode>(dent->uuid);
-            if(dir_p){
-                if(dir_p->dirent.size() != 0) {
+            if (dir_p) {
+                if (dir_p->dirent.size() != 0) {
                     return ENOTEMPTY;
                 }
                 if (!remove_metadata(dent->uuid)) {
@@ -327,6 +368,135 @@ int ecall_fs_rmdir(fuse_ino_t parent, const char* name) {
     }
     printf("%s is not found\n", name);
     return ENOENT;
+}
+
+int ecall_fs_read(fuse_ino_t ino, char* buf, size_t offset, size_t* size) {
+    auto iter = inode_map.find(ino);
+    if (iter == inode_map.end() || iter->second->get_type() != Metadata::M_Filenode) {
+        return EINVAL;
+    }
+    std::shared_ptr<Filenode> fn = std::dynamic_pointer_cast<Filenode>(iter->second);
+
+    *size = std::min(*size, fn->size - offset);
+    size_t chunk_st = offset / CHUNKSIZE;
+    size_t chunk_en = (offset + *size + CHUNKSIZE - 1) / CHUNKSIZE;
+    if (chunk_en > fn->chunks.size()) {
+        printf("filesize is larger than local chunks\n");
+        printf("chunk_en=%ld, fn->chunks.size=%ld fn->size=%ld\n", chunk_en, fn->chunks.size(),
+               fn->size);
+        return EINVAL;
+    }
+    chunk_en = std::min(chunk_en, fn->chunks.size());
+    size_t wsize = 0;
+
+    for (size_t idx = chunk_st; idx < chunk_en; idx++) {
+        Filenode::Chunk& chunk = fn->chunks[idx];
+        size_t off_st = (idx == chunk_st) ? offset % CHUNKSIZE : 0;
+        size_t off_en = (idx == chunk_en - 1) ? (offset + *size - 1) % CHUNKSIZE + 1 : CHUNKSIZE;
+
+        if (chunk.mem == nullptr) {
+            chunk.mem = static_cast<unsigned char*>(malloc(CHUNKSIZE));
+            ssize_t rsize = load_chunk(chunk);
+            if (rsize < 0) {
+                free(chunk.mem);
+                chunk.mem = nullptr;
+                return EINVAL;
+            }
+            if (rsize > CHUNKSIZE) {
+                printf("fetched chunk is larger (%ld) than CHUNKSIZE\n", rsize);
+                return EINVAL;
+            }
+        }
+        memcpy_verw_s(buf + wsize, *size - wsize, chunk.mem + off_st, off_en - off_st);
+        wsize += off_en - off_st;
+    }
+    if (wsize != *size) {
+        printf("write size and read size does not match");
+        return EINVAL;
+    }
+    return 0;
+}
+
+int ecall_fs_write(fuse_ino_t ino, const char* buf, size_t offset, size_t* size) {
+    auto iter = inode_map.find(ino);
+    if (iter == inode_map.end() || iter->second->get_type() != Metadata::M_Filenode) {
+        return EINVAL;
+    }
+    std::shared_ptr<Filenode> fn = std::dynamic_pointer_cast<Filenode>(iter->second);
+
+    size_t chunk_st = offset / CHUNKSIZE;
+    size_t chunk_en = (offset + *size + CHUNKSIZE - 1) / CHUNKSIZE;
+
+    for(int i=0;i<fn->chunks.size();i++){
+        printf("idx=%ld, mem=%p\n", i, fn->chunks[i].mem);
+    }
+
+    if (chunk_en > fn->chunks.size()) {
+        size_t prev_size = fn->chunks.size();
+        printf("extend chunks from %ld to %ld\n", prev_size, chunk_en);
+        fn->chunks.resize(chunk_en);
+        for(size_t idx = prev_size; idx < chunk_en; idx++){
+            fn->chunks[idx].mem = static_cast<unsigned char*>(malloc(CHUNKSIZE));
+        }
+    }
+    size_t wsize = 0;
+    for(int i=0;i<fn->chunks.size();i++){
+        printf("idx=%ld, mem=%p\n", i, fn->chunks[i].mem);
+    }
+
+    for (size_t idx = chunk_st; idx < chunk_en; idx++) {
+        Filenode::Chunk& chunk = fn->chunks[idx];
+        size_t off_st = (idx == chunk_st) ? offset % CHUNKSIZE : 0;
+        size_t off_en = (idx == chunk_en - 1) ? (offset + *size - 1) % CHUNKSIZE + 1 : CHUNKSIZE;
+        printf("idx=%ld, st=%ld, en=%ld mem=%p\n", idx, off_st, off_en, chunk.mem);
+
+        if (chunk.mem == nullptr) {
+            chunk.mem = static_cast<unsigned char*>(malloc(CHUNKSIZE));
+            if (off_st != 0 || off_en != CHUNKSIZE) {
+                ssize_t rsize = load_chunk(chunk);
+                if (rsize < 0) {
+                    free(chunk.mem);
+                    chunk.mem = nullptr;
+                    return EINVAL;
+                }
+                if (rsize > CHUNKSIZE) {
+                    printf("fetched chunk is larger (%ld) than CHUNKSIZE\n", rsize);
+                    return EINVAL;
+                }
+            }
+        }
+
+        memcpy_verw_s(chunk.mem + off_st, CHUNKSIZE - off_st, buf + wsize, off_en - off_st);
+        chunk.modified = true;
+        wsize += off_en - off_st;
+    }
+    *size = wsize;
+    fn->size = std::max(fn->size, offset + wsize);
+    return 0;
+}
+
+int ecall_fs_flush(fuse_ino_t ino) {
+    auto iter = inode_map.find(ino);
+    if (iter == inode_map.end() || iter->second->get_type() != Metadata::M_Filenode) {
+        return EBADF;
+    }
+    std::shared_ptr<Filenode> fn = std::dynamic_pointer_cast<Filenode>(iter->second);
+    if (!save_metadata(fn.get()))
+        return EIO;
+
+    for (Filenode::Chunk& chunk : fn->chunks) {
+        if (chunk.modified) {
+            if (chunk.mem == nullptr) {
+                printf("modified bit is set but memory is not allocated\n");
+                continue;
+            }
+            if (save_chunk(chunk) < 0) {
+                printf("failed to save chunk\n");
+                continue;
+            }
+        }
+    }
+    return 0;
 }
 
 int ecall_fs_get_dirent(ino_t ino, dirent_t* buf, size_t count, ssize_t* getcount) {

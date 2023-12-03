@@ -7,8 +7,10 @@ enclave {
         public int ecall_fs_lookup(ino_t parent, [in, string] const char* name, [out] fuse_ino_t* ino, [out] struct stat_buffer_t* statbuf);
         public int ecall_fs_mkdir(ino_t parent, [in, string] const char* name, mode_t mode, [out] fuse_ino_t* ino, [out] struct stat_buffer_t* statbuf);
         public int ecall_fs_rmdir(fuse_ino_t parent, [in, string] const char *name);
+        public int ecall_fs_read(fuse_ino_t ino, [user_check] char* buf, size_t offset, [in, out] size_t* size);
+        public int ecall_fs_write(fuse_ino_t ino, [user_check] const char* buf, size_t offset, [in, out] size_t* size);
+        public int ecall_fs_flush(fuse_ino_t ino);
         public int ecall_fs_get_dirent(ino_t ino, [out, count = count] struct dirent_t* buf, size_t count, [out] ssize_t *getcount);
-        public void ecall_print(void);
         public void ecall_debug(void);
     };
     untrusted {
