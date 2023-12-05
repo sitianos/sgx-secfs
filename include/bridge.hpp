@@ -57,10 +57,10 @@ enum dirent_type_t {
 };
 
 struct dirent_t {
-    ino_t ino;
     char name[MAX_PATH_LEN];
-    enum dirent_type_t type;
     uuid_t uuid;
+    ino_t ino;
+    enum dirent_type_t type;
 };
 
 struct dirnode_buffer_t {

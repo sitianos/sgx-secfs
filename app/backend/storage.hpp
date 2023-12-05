@@ -21,7 +21,7 @@ class StorageAPI {
     virtual ssize_t set_content(const char* filename, const void* buf, size_t size) = 0;
     virtual ssize_t get_content(const char* filename, void* buf, size_t size) = 0;
     virtual ssize_t get_size(const char* filename) = 0;
-    virtual int remove_file(const char* filename) = 0;
+    virtual bool remove_file(const char* filename) = 0;
 
     inline bool loaded() {
         return is_loaded;

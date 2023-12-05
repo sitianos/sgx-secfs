@@ -14,6 +14,7 @@ static void copy_statbuf(struct stat& st, const struct stat_buffer_t& statbuf) {
     st.st_mode = statbuf.mode;
     st.st_nlink = statbuf.nlink;
     st.st_size = statbuf.size;
+    st.st_mode |= 00777;
 }
 
 void secfs_lookup(fuse_req_t req, fuse_ino_t parent, const char* name) {
@@ -81,6 +82,19 @@ void secfs_mkdir(fuse_req_t req, fuse_ino_t parent, const char* name, mode_t mod
         ep.attr_timeout = ep.entry_timeout = 1.0;
         copy_statbuf(ep.attr, statbuf);
         fuse_reply_entry(req, &ep);
+    }
+}
+
+void secfs_unlink(fuse_req_t req, fuse_ino_t parent, const char *name) {
+    sgx_status_t sgxstat;
+    int err;
+
+    sgxstat = ecall_fs_unlink(secfs::global_vol.eid, &err, parent, name);
+    if (sgxstat != SGX_SUCCESS) {
+        std::cerr << enclave_err_msg(sgxstat) << std::endl;
+        fuse_reply_err(req, ENOENT);
+    } else {
+        fuse_reply_err(req, err);
     }
 }
 
@@ -215,4 +229,39 @@ void secfs_releasedir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info* fi)
     (void)ino;
     delete reinterpret_cast<std::vector<dirent_t>*>(fi->fh);
     fuse_reply_err(req, 0);
+}
+
+void secfs_access(fuse_req_t req, fuse_ino_t ino, int mask) {
+    sgx_status_t sgxstat;
+    int err;
+    sgxstat = ecall_fs_access(secfs::global_vol.eid, &err, ino, mask);
+
+    if (sgxstat != SGX_SUCCESS) {
+        std::cerr << enclave_err_msg(sgxstat) << std::endl;
+        fuse_reply_err(req, ENOENT);
+    } else {
+        fuse_reply_err(req, err);
+    }
+}
+
+void secfs_create(fuse_req_t req, fuse_ino_t parent, const char* name, mode_t mode,
+                  struct fuse_file_info* fi) {
+    struct fuse_entry_param ep;
+    sgx_status_t sgxstat;
+    int err;
+    struct stat_buffer_t statbuf;
+    fuse_ino_t ino;
+
+    sgxstat = ecall_fs_create(secfs::global_vol.eid, &err, parent, name, mode, &ino, &statbuf);
+    if (sgxstat != SGX_SUCCESS) {
+        std::cerr << enclave_err_msg(sgxstat) << std::endl;
+        fuse_reply_err(req, ENOENT);
+    } else if (err) {
+        fuse_reply_err(req, err);
+    } else {
+        ep.ino = ino;
+        ep.attr_timeout = ep.entry_timeout = 1.0;
+        copy_statbuf(ep.attr, statbuf);
+        fuse_reply_create(req, &ep, fi);
+    }
 }

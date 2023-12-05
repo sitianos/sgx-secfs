@@ -1,4 +1,5 @@
 #include "filenode.hpp"
+
 #include <cstring>
 
 Filenode::Filenode(const filenode_buffer_t& buf)
@@ -38,19 +39,26 @@ size_t Filenode::nlink() const {
 Filenode::Chunk::Chunk(const chunk_t& chunk) : uuid(chunk.uuid), modified(false), mem(nullptr) {
 }
 
-Filenode::Chunk::Chunk(const Filenode::Chunk& chunk) : uuid(chunk.uuid), modified(chunk.modified){
-    if(chunk.mem){
-        mem = (unsigned char*)malloc(CHUNKSIZE);
-        std::memcpy(mem, chunk.mem, CHUNKSIZE);
-    }
-}
-
-Filenode::Chunk::Chunk(Filenode::Chunk&& chunk) : uuid(chunk.uuid), modified(chunk.modified), mem(chunk.mem){
+Filenode::Chunk::Chunk(Filenode::Chunk&& chunk)
+    : uuid(chunk.uuid), modified(chunk.modified), mem(chunk.mem) {
     chunk.mem = nullptr;
 }
 
 Filenode::Chunk::~Chunk() {
     free(mem);
+}
+
+void Filenode::Chunk::allocate() {
+    if (mem == nullptr) {
+        mem = new char[CHUNKSIZE];
+    }
+}
+
+void Filenode::Chunk::deallocate() {
+    if (mem) {
+        delete[] mem;
+        mem = nullptr;
+    }
 }
 
 void Filenode::Chunk::dump(chunk_t& chunk) const {

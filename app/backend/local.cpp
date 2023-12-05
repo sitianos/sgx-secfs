@@ -45,20 +45,26 @@ ssize_t LocalStorage::get_content(const char* filename, void* buf, size_t size) 
     ifs.read(static_cast<char*>(buf), size);
     return ifs.gcount();
 }
+
 ssize_t LocalStorage::get_size(const char* filename) {
     std::error_code ec;
     fs::path file = base_dir / filename;
     ssize_t size = fs::file_size(file, ec);
     if (ec) {
-        std::cerr << "get size of " << file << ": " << ec.message() << std::endl;
+        std::cerr << "failed to get size of " << file << ": " << ec.message() << std::endl;
         return -1;
     }
     return size;
 }
 
-int LocalStorage::remove_file(const char* filename) {
+bool LocalStorage::remove_file(const char* filename) {
+    std::error_code ec;
     fs::path file = base_dir / filename;
-    return fs::remove(file) ? 1 : 0;
+    bool rm = fs::remove(file, ec);
+    if (!rm) {
+        std::cerr << "failed to remove " << filename << ":" << ec.message() << std::endl;
+    }
+    return rm;
 }
 
 LocalStorage LocalStorage::load_config(const json& config) {

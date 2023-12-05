@@ -42,7 +42,8 @@ size_t Dirnode::nlink() const {
     return cnt;
 }
 
-Dirnode::Dirent::Dirent(const dirent_t& dent) : ino(dent.ino), name(dent.name), type(dent.type), uuid(dent.uuid) {
+Dirnode::Dirent::Dirent(const dirent_t& dent)
+    : ino(dent.ino), name(dent.name), type(dent.type), uuid(dent.uuid) {
 }
 
 void Dirnode::Dirent::dump(dirent_t& dent) const {

@@ -20,7 +20,7 @@ class LocalStorage : public StorageAPI {
     ssize_t get_content(const char* filename, void* buf, size_t size) override;
     ssize_t get_size(const char* filename) override;
 
-    int remove_file(const char* filename) override;
+    bool remove_file(const char* filename) override;
 
     static LocalStorage load_config(const json& config);
 };

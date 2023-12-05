@@ -18,6 +18,7 @@ static const struct fuse_lowlevel_ops secfs_oper = {
     .forget = secfs_forget,
     .getattr = secfs_getattr,
     .mkdir = secfs_mkdir,
+    .unlink = secfs_unlink,
     .rmdir = secfs_rmdir,
     .open = secfs_open,
     .read = secfs_read,
@@ -26,6 +27,8 @@ static const struct fuse_lowlevel_ops secfs_oper = {
     .opendir = secfs_opendir,
     .readdir = secfs_readdir,
     .releasedir = secfs_releasedir,
+    .access = secfs_access,
+    .create = secfs_create
 };
 
 struct secfs_options {

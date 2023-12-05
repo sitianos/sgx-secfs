@@ -6,17 +6,23 @@ enclave {
         public int ecall_fs_getattr(ino_t ino, [out] struct stat_buffer_t* statbuf);
         public int ecall_fs_lookup(ino_t parent, [in, string] const char* name, [out] fuse_ino_t* ino, [out] struct stat_buffer_t* statbuf);
         public int ecall_fs_mkdir(ino_t parent, [in, string] const char* name, mode_t mode, [out] fuse_ino_t* ino, [out] struct stat_buffer_t* statbuf);
+        public int ecall_fs_unlink(fuse_ino_t parent, [in, string] const char *name);
         public int ecall_fs_rmdir(fuse_ino_t parent, [in, string] const char *name);
+        public int ecall_fs_open(fuse_ino_t ino, int flags);
         public int ecall_fs_read(fuse_ino_t ino, [user_check] char* buf, size_t offset, [in, out] size_t* size);
         public int ecall_fs_write(fuse_ino_t ino, [user_check] const char* buf, size_t offset, [in, out] size_t* size);
         public int ecall_fs_flush(fuse_ino_t ino);
         public int ecall_fs_get_dirent(ino_t ino, [out, count = count] struct dirent_t* buf, size_t count, [out] ssize_t *getcount);
+        public int ecall_fs_access(fuse_ino_t ino, int mask);
+        public int ecall_fs_create(fuse_ino_t parent, [in, string] const char *name, mode_t mode, [out] fuse_ino_t* ino, [out] struct stat_buffer_t* statbuf);
+
         public void ecall_debug(void);
     };
     untrusted {
-        void ocall_fetch_file([in, string] const char* filename, [out] void** content, [out] ssize_t* size);
-        void ocall_dump_file([in, string] const char* filename, [in, size=size] void* content, size_t size);
-        void ocall_remove_file([in, string] const char* filename);
+        void ocall_load_file([in, string] const char* filename, [out] void** content, [out] ssize_t* size);
+        void ocall_save_file([in, string] const char* filename, [in, size=size] void* content, size_t size);
+        void ocall_remove_file([in, string] const char* filename, [out] int* err);
+        void ocall_free([user_check] void* mem);
         void ocall_print_string([in, string] const char *str);
     };
 };

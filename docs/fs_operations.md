@@ -34,6 +34,12 @@ functions below of [fuse_lowlevel_ops](https://libfuse.github.io/doxygen/structf
 - returns created inode number and attributes
 
 ### unlink
+- remove file with parent inode and file name
+- within enclave
+    - check write permission to parent dirnode
+    - remove removed file from storage
+    - remove chunks from storage
+    - save parent dirnode to storage
 
 ### rmdir
 - removes directory with parent inode number and directory name
@@ -102,5 +108,8 @@ functions below of [fuse_lowlevel_ops](https://libfuse.github.io/doxygen/structf
 ### removexattr
 
 ### access
+- check if access to given file or directory is permitted
 
 ### create
+- create file with parent directory inode and file name
+- almost the same as mkdir

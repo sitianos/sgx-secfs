@@ -11,14 +11,15 @@ class Filenode : public Inode {
       public:
         UUID uuid;
         bool modified;
-        unsigned char* mem;
+        char* mem;
 
         Chunk() = default;
         Chunk(const chunk_t& chunk);
-        Chunk(const Chunk& chunk);
         Chunk(Chunk&& chunk);
         ~Chunk();
 
+        void allocate();
+        void deallocate();
         void dump(chunk_t& chunk) const;
     };
 
@@ -27,7 +28,7 @@ class Filenode : public Inode {
     unsigned long ctr[2];
 
     Filenode() = default;
-    Filenode(const filenode_buffer_t &buf);
+    Filenode(const filenode_buffer_t& buf);
 
     size_t dump(void* buf, size_t size) const override;
     void dump_stat(stat_buffer_t* buf) const override;

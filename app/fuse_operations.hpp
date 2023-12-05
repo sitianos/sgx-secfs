@@ -16,7 +16,7 @@ void secfs_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info* fi);
 
 void secfs_mkdir(fuse_req_t req, fuse_ino_t parent, const char* name, mode_t mode);
 
-// void secfs_unlink(fuse_req_t req, fuse_ino_t parent, const char *name);
+void secfs_unlink(fuse_req_t req, fuse_ino_t parent, const char *name);
 
 void secfs_rmdir(fuse_req_t req, fuse_ino_t parent, const char* name);
 
@@ -51,8 +51,8 @@ void secfs_releasedir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info* fi)
 
 // void secfs_removexattr(fuse_req_t req, fuse_ino_t ino, const char *name);
 
-// void secfs_access(fuse_req_t req, fuse_ino_t ino, int mask);
+void secfs_access(fuse_req_t req, fuse_ino_t ino, int mask);
 
-// void secfs_create(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode, struct fuse_file_info *fi);
+void secfs_create(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode, struct fuse_file_info *fi);
 
 }
