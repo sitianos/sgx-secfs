@@ -121,14 +121,14 @@ static bool remove_chunk(const UUID& uuid) {
 }
 
 static ssize_t load_chunk(Filenode::Chunk& chunk) {
-    void* obuf;
+    void* buf;
     ssize_t size;
     char filename[40];
     sgx_status_t status;
 
     chunk.uuid.unparse(filename);
 
-    status = ocall_load_file(filename, &obuf, &size);
+    status = ocall_load_file(filename, &buf, &size);
     if (status != SGX_SUCCESS) {
         printf("SGX Error in %s(): 0x%4x %s\n", __func__, status, enclave_err_msg(status));
         return -1;
@@ -141,9 +141,10 @@ static ssize_t load_chunk(Filenode::Chunk& chunk) {
     chunk.allocate();
 
     // decryption here
-    memcpy_verw_s(chunk.mem, CHUNKSIZE, obuf, size);
+    memcpy_verw_s(chunk.mem, CHUNKSIZE, buf, size);
     chunk.modified = false;
 
+    ocall_free(buf);
     return size;
 }
 
@@ -170,79 +171,16 @@ static ssize_t save_chunk(Filenode::Chunk& chunk) {
 }
 
 void ecall_debug() {
-    unsigned char str[] = "hello";
-    unsigned char hash[32];
-    mbedtls_sha256(str, 5, hash, 0);
-    char hex[65];
-    hexdump(hash, 32, hex);
-    printf("hash = %s\n", hex);
-
     uuid_t uid = {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
     UUID uuid1(uid);
     Dirnode* root = Metadata::create<Dirnode>(uuid1);
     root->ino = 1;
     root->name = "";
-    root->dirent.resize(2);
-
-    root->dirent[0].ino = 2;
-    root->dirent[0].name = "dir1";
-    root->dirent[0].type = T_DT_DIR;
-    uid[0] = 2;
-    UUID uuid2(uid);
-    root->dirent[0].uuid = uuid2;
-
-    root->dirent[1].ino = 3;
-    root->dirent[1].name = "file1";
-    root->dirent[1].type = T_DT_REG;
-    uid[0] = 3;
-    UUID uuid3(uid);
-    root->dirent[1].uuid = uuid3;
-
-    Filenode* file1 = Metadata::create<Filenode>(uuid3);
-    file1->ino = 3;
-    file1->size = 0;
-    save_metadata(file1);
-    delete file1;
-
     inode_map[1] = std::shared_ptr<Dirnode>(root);
     save_metadata(root);
 
-    Dirnode* dir1 = Metadata::create<Dirnode>(uuid2);
-    dir1->ino = 2;
-    dir1->name = "dir1";
-    dir1->dirent.resize(2);
-
-    dir1->dirent[0].ino = 4;
-    dir1->dirent[0].name = "file2";
-    dir1->dirent[0].type = T_DT_REG;
-    uid[0] = 4;
-    UUID uuid4(uid);
-    dir1->dirent[0].uuid = uuid4;
-
-    Filenode* file2 = Metadata::create<Filenode>(uuid4);
-    file2->ino = 4;
-    file2->size = 0;
-    save_metadata(file2);
-    delete file2;
-
-    dir1->dirent[1].ino = 5;
-    dir1->dirent[1].name = "file3";
-    dir1->dirent[1].type = T_DT_REG;
-    uid[0] = 5;
-    UUID uuid5(uid);
-    dir1->dirent[1].uuid = uuid5;
-
-    Filenode* file3 = Metadata::create<Filenode>(uuid5);
-    file3->ino = 5;
-    file3->size = 0;
-    save_metadata(file3);
-    delete file3;
-
-    save_metadata(dir1);
-    delete dir1;
-
-    max_ino = 6;
+    max_ino = 2;
 }
 
 int ecall_fs_lookup(ino_t parent, const char* name, ino_t* ino, stat_buffer_t* statbuf) {
@@ -252,10 +190,10 @@ int ecall_fs_lookup(ino_t parent, const char* name, ino_t* ino, stat_buffer_t* s
     if (iter == inode_map.end()) {
         return ENOENT;
     }
-    if (iter->second->get_type() != Metadata::M_Dirnode) {
+    std::shared_ptr<Dirnode> parent_dn;
+    if(!(parent_dn = std::dynamic_pointer_cast<Dirnode>(iter->second))) {
         return ENOENT;
     }
-    std::shared_ptr<Dirnode> parent_dn = std::dynamic_pointer_cast<Dirnode>(iter->second);
     char filename[36];
     void* ubuf;
     ssize_t fsize;
@@ -317,10 +255,10 @@ int ecall_fs_mkdir(ino_t parent, const char* name, mode_t mode, fuse_ino_t* ino,
     if (iter == inode_map.end()) {
         return ENOENT;
     }
-    if (iter->second->get_type() != Metadata::M_Dirnode) {
+    std::shared_ptr<Dirnode> parent_dn;
+    if(!(parent_dn = std::dynamic_pointer_cast<Dirnode>(iter->second))) {
         return ENOTDIR;
     }
-    std::shared_ptr<Dirnode> parent_dn = std::dynamic_pointer_cast<Dirnode>(iter->second);
     for (decltype(Dirnode::dirent)::iterator dent = parent_dn->dirent.begin();
          dent != parent_dn->dirent.end(); dent++) {
         if (dent->name == name) {
@@ -356,10 +294,10 @@ int ecall_fs_unlink(fuse_ino_t parent, const char* name) {
     if (iter == inode_map.end()) {
         return ENOENT;
     }
-    if (iter->second->get_type() != Metadata::M_Dirnode) {
+    std::shared_ptr<Dirnode> parent_dn;
+    if(!(parent_dn = std::dynamic_pointer_cast<Dirnode>(iter->second))) {
         return ENOTDIR;
     }
-    std::shared_ptr<Dirnode> parent_dn = std::dynamic_pointer_cast<Dirnode>(iter->second);
     for (decltype(Dirnode::dirent)::iterator dent = parent_dn->dirent.begin();
          dent != parent_dn->dirent.end(); dent++) {
         if (dent->name == name) {
@@ -400,10 +338,10 @@ int ecall_fs_rmdir(fuse_ino_t parent, const char* name) {
     if (iter == inode_map.end()) {
         return ENOENT;
     }
-    if (iter->second->get_type() != Metadata::M_Dirnode) {
+    std::shared_ptr<Dirnode> parent_dn;
+    if(!(parent_dn = std::dynamic_pointer_cast<Dirnode>(iter->second))) {
         return ENOTDIR;
     }
-    std::shared_ptr<Dirnode> parent_dn = std::dynamic_pointer_cast<Dirnode>(iter->second);
     for (decltype(Dirnode::dirent)::iterator dent = parent_dn->dirent.begin();
          dent != parent_dn->dirent.end(); dent++) {
         if (dent->name == name) {
@@ -442,10 +380,13 @@ int ecall_fs_open(fuse_ino_t ino, int flags) {
 
 int ecall_fs_read(fuse_ino_t ino, char* buf, size_t offset, size_t* size) {
     auto iter = inode_map.find(ino);
-    if (iter == inode_map.end() || iter->second->get_type() != Metadata::M_Filenode) {
+    if (iter == inode_map.end()) {
         return EINVAL;
     }
-    std::shared_ptr<Filenode> fn = std::dynamic_pointer_cast<Filenode>(iter->second);
+    std::shared_ptr<Filenode> fn;
+    if(!(fn = std::dynamic_pointer_cast<Filenode>(iter->second))) {
+        return EINVAL;
+    }
 
     *size = std::min(*size, fn->size - offset);
     size_t chunk_st = offset / CHUNKSIZE;
@@ -489,10 +430,13 @@ int ecall_fs_read(fuse_ino_t ino, char* buf, size_t offset, size_t* size) {
 
 int ecall_fs_write(fuse_ino_t ino, const char* buf, size_t offset, size_t* size) {
     auto iter = inode_map.find(ino);
-    if (iter == inode_map.end() || iter->second->get_type() != Metadata::M_Filenode) {
+    if (iter == inode_map.end()) {
         return EINVAL;
     }
-    std::shared_ptr<Filenode> fn = std::dynamic_pointer_cast<Filenode>(iter->second);
+    std::shared_ptr<Filenode> fn;
+    if(!(fn = std::dynamic_pointer_cast<Filenode>(iter->second))) {
+        return EINVAL;
+    }
 
     size_t chunk_st = offset / CHUNKSIZE;
     size_t chunk_en = (offset + *size + CHUNKSIZE - 1) / CHUNKSIZE;
@@ -547,10 +491,13 @@ int ecall_fs_write(fuse_ino_t ino, const char* buf, size_t offset, size_t* size)
 
 int ecall_fs_flush(fuse_ino_t ino) {
     auto iter = inode_map.find(ino);
-    if (iter == inode_map.end() || iter->second->get_type() != Metadata::M_Filenode) {
-        return EBADF;
+    if (iter == inode_map.end()) {
+        return EINVAL;
     }
-    std::shared_ptr<Filenode> fn = std::dynamic_pointer_cast<Filenode>(iter->second);
+    std::shared_ptr<Filenode> fn;
+    if(!(fn = std::dynamic_pointer_cast<Filenode>(iter->second))) {
+        return EINVAL;
+    }
     if (!save_metadata(fn.get()))
         return EIO;
 
@@ -575,14 +522,13 @@ int ecall_fs_get_dirent(fuse_ino_t ino, dirent_t* buf, size_t count, ssize_t* ge
         *getcount = 0;
         return ENOENT;
     }
-    if (iter->second->get_type() != Metadata::M_Dirnode) {
-        *getcount = 0;
+    std::shared_ptr<Dirnode> parent_dn;
+    if(!(parent_dn = std::dynamic_pointer_cast<Dirnode>(iter->second))) {
         return ENOTDIR;
     }
-    std::shared_ptr<Dirnode> parent_dn = std::dynamic_pointer_cast<Dirnode>(iter->second);
     size_t i = 0;
     for (Dirnode::Dirent& dent : parent_dn->dirent) {
-        dent.dump(buf[i]);
+        dent.dump(&buf[i]);
         i++;
         if (i >= count)
             break;
@@ -606,10 +552,11 @@ int ecall_fs_create(fuse_ino_t parent, const char* name, mode_t mode, fuse_ino_t
     if (iter == inode_map.end()) {
         return ENOENT;
     }
-    if (iter->second->get_type() != Metadata::M_Dirnode) {
+    std::shared_ptr<Dirnode> parent_dn;
+    if(!(parent_dn = std::dynamic_pointer_cast<Dirnode>(iter->second))) {
         return ENOTDIR;
     }
-    std::shared_ptr<Dirnode> parent_dn = std::dynamic_pointer_cast<Dirnode>(iter->second);
+
     for (decltype(Dirnode::dirent)::iterator dent = parent_dn->dirent.begin();
          dent != parent_dn->dirent.end(); dent++) {
         if (dent->name == name) {

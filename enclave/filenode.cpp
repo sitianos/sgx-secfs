@@ -2,9 +2,12 @@
 
 #include <cstring>
 
-Filenode::Filenode(const filenode_buffer_t& buf)
-    : size(buf.size), chunks(buf.entry, buf.entry + buf.entnum) {
-    ino = buf.ino;
+Filenode::Filenode(const filenode_buffer_t* buf)
+    : size(buf->size), chunks(buf->entry, buf->entry + buf->entnum) {
+    ino = buf->ino;
+}
+
+Filenode::Filenode(const void* buf): Filenode(static_cast<const filenode_buffer_t*>(buf)){
 }
 
 size_t Filenode::dump(void* buf, size_t size) const {
@@ -20,7 +23,7 @@ size_t Filenode::dump(void* buf, size_t size) const {
     obuf->size = this->size;
     obuf->entnum = chunks.size();
     for (size_t i = 0; i < chunks.size(); i++) {
-        chunks[i].dump(obuf->entry[i]);
+        chunks[i].dump(&obuf->entry[i]);
     }
     return rqsize;
 }
@@ -36,7 +39,10 @@ size_t Filenode::nlink() const {
     return 1;
 }
 
-Filenode::Chunk::Chunk(const chunk_t& chunk) : uuid(chunk.uuid), modified(false), mem(nullptr) {
+Filenode::Chunk::Chunk(const chunk_t* chunk) : uuid(chunk->uuid), modified(false), mem(nullptr) {
+}
+
+Filenode::Chunk::Chunk(const chunk_t& chunk) : Chunk(&chunk){
 }
 
 Filenode::Chunk::Chunk(Filenode::Chunk&& chunk)
@@ -61,6 +67,6 @@ void Filenode::Chunk::deallocate() {
     }
 }
 
-void Filenode::Chunk::dump(chunk_t& chunk) const {
-    uuid.dump(chunk.uuid);
+void Filenode::Chunk::dump(chunk_t* chunk) const {
+    uuid.dump(chunk->uuid);
 }
