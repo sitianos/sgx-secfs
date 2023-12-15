@@ -16,7 +16,6 @@
 ## Replay Attack
 ### Substitution Attack
 - The owner of storage server may try to replace data on storage with old data
-- 
 
 ## Oblivious Access
 ### Access Pattern Attack
