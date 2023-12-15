@@ -1,7 +1,7 @@
 #define FUSE_USE_VERSION 34
-#include "enclave.hpp"
-#include "enclave_u.h"
 #include "fuse_operations.hpp"
+#include "enclave_u.h"
+#include "enclave.hpp"
 #include "volume.hpp"
 
 #include <cstddef>
@@ -14,6 +14,7 @@ static void secfs_help() {
 }
 
 static const struct fuse_lowlevel_ops secfs_oper = {
+    .init = secfs_init,
     .lookup = secfs_lookup,
     .forget = secfs_forget,
     .getattr = secfs_getattr,
@@ -47,7 +48,6 @@ int main(int argc, char** argv, char** envp) {
     struct fuse_cmdline_opts opts;
     struct fuse_loop_config config;
     struct secfs_options options = {};
-    sgx_status_t stat;
     using secfs::global_vol;
     int ret = -1;
 
@@ -84,7 +84,6 @@ int main(int argc, char** argv, char** envp) {
         ret = 1;
         goto err_out1;
     }
-    std::cout << "load " << options.volume_config << std::endl;
 
     global_vol.load_config(options.volume_config);
 
@@ -101,9 +100,15 @@ int main(int argc, char** argv, char** envp) {
         goto err_out1;
     }
 
-    stat = ecall_debug(global_vol.eid);
-    if (stat != SGX_SUCCESS) {
-        std::cerr << "ecall debug" << enclave_err_msg(stat) << std::endl;
+    sgx_status_t sgxstat;
+    int err;
+    sgxstat = ecall_mount_volume(global_vol.eid, &err);
+    if(sgxstat != SGX_SUCCESS){
+        std::cerr << enclave_err_msg(sgxstat) << std::endl;
+        goto err_out1;
+    }
+    if(err) {
+        std::cerr << "failed to mount volume" << std::endl;
         goto err_out1;
     }
 

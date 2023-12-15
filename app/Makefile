@@ -21,7 +21,7 @@ else
 endif
 
 INCLUDES := $(addprefix -I, . ../include) $(shell pkg-config fuse3 --cflags)
-LIBS := $(shell pkg-config fuse3 --libs)
+LIBS := $(shell pkg-config fuse3 --libs) -lmbedtls -lmbedcrypto
 
 CFLAGS := $(SGX_COMMON_CFLAGS) $(SGX_APP_CFLAGS) $(INCLUDES)
 CXXFLAGS := $(SGX_COMMON_CXXFLAGS) $(SGX_APP_CFLAGS) $(INCLUDES)
@@ -29,9 +29,11 @@ CXXFLAGS := $(SGX_COMMON_CXXFLAGS) $(SGX_APP_CFLAGS) $(INCLUDES)
 LDFLAGS := -L$(SGX_LIBRARY_PATH) -Wl,--rpath $(SGX_LIBRARY_PATH) $(Urts_LIBS) $(LIBS)
 
 OBJ_DIR := $(BUILD_DIR)/app
-objs := main.o fuse_operations.o volume.o enclave.o ocall.o backend/local.o
+objs := main.o cli.o fuse_operations.o volume.o enclave.o ocall.o backend/local.o
 build_objs := $(addprefix $(OBJ_DIR)/, $(objs))
-exec := $(BIN_DIR)/secfs
+main_objs := main.o fuse_operations.o volume.o enclave.o ocall.o backend/local.o
+cli_objs := cli.o volume.o enclave.o ocall.o backend/local.o
+exec := $(BIN_DIR)/secfs $(BIN_DIR)/secfs_cli
 
 .PHONY: all clean
 
@@ -42,7 +44,17 @@ $(OBJ_DIR):
 	mkdir -p $(OBJ_DIR)/backend
 	mkdir -p $(BIN_DIR)
 
-$(exec): $(build_objs) $(OBJ_DIR)/enclave_u.o
+# $(exec): $(build_objs) $(OBJ_DIR)/enclave_u.o
+# 	@echo ---------- link $@ ----------
+# 	$(CXX) $^ $(LDFLAGS) -o $@
+# 	@echo
+
+$(BIN_DIR)/secfs: $(addprefix $(OBJ_DIR)/, $(main_objs)) $(OBJ_DIR)/enclave_u.o
+	@echo ---------- link $@ ----------
+	$(CXX) $^ $(LDFLAGS) -o $@
+	@echo
+
+$(BIN_DIR)/secfs_cli: $(addprefix $(OBJ_DIR)/, $(cli_objs)) $(OBJ_DIR)/enclave_u.o
 	@echo ---------- link $@ ----------
 	$(CXX) $^ $(LDFLAGS) -o $@
 	@echo

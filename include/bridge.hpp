@@ -11,13 +11,15 @@ extern "C" {
 #endif
 
 typedef uint64_t fuse_ino_t;
-
+typedef uint32_t user_id_t;
 typedef uint64_t ino_t;
 typedef uint32_t mode_t;
 typedef uint64_t nlink_t;
 
 typedef unsigned char uuid_t[16];
 typedef unsigned char hash_t[32];
+
+typedef unsigned char pubkey_t[256];
 
 enum stat_mode_t {
     T_ST_DIR = 0040000,
@@ -37,6 +39,7 @@ struct superinfo_buffer_t {
     uuid_t user_table;
     hash_t hash_root_dirnode;
     hash_t hash_user_table;
+    ino_t max_ino;
 };
 
 struct chunk_t {
@@ -68,6 +71,18 @@ struct dirnode_buffer_t {
     char name[MAX_PATH_LEN];
     size_t entnum;
     struct dirent_t entry[];
+};
+
+struct userinfo_t {
+    int is_owner;
+    user_id_t uid;
+    size_t keysize;
+    pubkey_t pubkey;
+};
+
+struct usertable_buffer_t {
+    size_t entnum;
+    struct userinfo_t entry[];
 };
 
 #ifdef __cplusplus

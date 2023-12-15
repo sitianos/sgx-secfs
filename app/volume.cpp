@@ -1,7 +1,9 @@
 #include "volume.hpp"
+
 #include "enclave.hpp"
 
 #include <iostream>
+#include <mbedtls/pk.h>
 
 namespace secfs {
 Volume::Volume() : api(nullptr), is_loaded(false), eid(0) {
@@ -36,6 +38,10 @@ StorageAPI* Volume::__load_api_instance(json storage_config) {
 }
 
 int Volume::init_enclave() {
+    if (enclave_path.empty()) {
+        std::cerr << "enclave path is not provided" << std::endl;
+        return 0;
+    }
     sgx_status_t ret = SGX_ERROR_UNEXPECTED;
     ret = sgx_create_enclave(enclave_path.c_str(), SGX_DEBUG_FLAG, NULL, NULL, &eid, NULL);
     if (ret != SGX_SUCCESS) {
@@ -57,9 +63,43 @@ int Volume::init_api_instance() {
     return api->init();
 }
 
+int Volume::load_pubkey() {
+    if (pubkey_path.empty()) {
+        std::cerr << "path of public key is not provided" << std::endl;
+        return 0;
+    }
+    mbedtls_ecp_keypair_init(&pubkey);
+    mbedtls_pk_context pk_ctx;
+    mbedtls_pk_init(&pk_ctx);
+    if (mbedtls_pk_parse_public_keyfile(&pk_ctx, pubkey_path.c_str())) {
+        std::cerr << "failed to parse " << pubkey_path << std::endl;
+        return 0;
+    }
+    if (mbedtls_pk_get_type(&pk_ctx) != MBEDTLS_PK_ECKEY) {
+        std::cerr << "given key is not ECDSA public key" << std::endl;
+        return 0;
+    }
+    if (mbedtls_ecp_copy(&pubkey.MBEDTLS_PRIVATE(Q), &mbedtls_pk_ec(pk_ctx)->MBEDTLS_PRIVATE(Q)) !=
+            0 ||
+        mbedtls_ecp_group_copy(&pubkey.MBEDTLS_PRIVATE(grp),
+                               &mbedtls_pk_ec(pk_ctx)->MBEDTLS_PRIVATE(grp)) != 0) {
+        std::cerr << "failed to copy public key" << std::endl;
+        return 0;
+    }
+    mbedtls_pk_free(&pk_ctx);
+    return 1;
+}
+
 Volume::~Volume() {
+    sgx_status_t sgxstat = SGX_ERROR_UNEXPECTED;
     if (api)
         delete api;
+    if (eid) {
+        sgxstat = sgx_destroy_enclave(eid);
+        if (sgxstat != SGX_SUCCESS) {
+            std::cerr << enclave_err_msg(sgxstat) << std::endl;
+        }
+    }
 }
 
 int Volume::load_config(const char* config_file) {
@@ -75,18 +115,29 @@ int Volume::load_config(const char* config_file) {
         std::cerr << e.what() << std::endl;
         return 0;
     }
-    if (config.count("enclave_path") == 0 || !config["enclave_path"].is_string()) {
-        std::cerr << "invalid enclave_path field" << std::endl;
-        return 0;
+    if (config.count("enclave_path")) {
+        if (!config["enclave_path"].is_string()) {
+            std::cerr << "invalid enclave_path field" << std::endl;
+            return 0;
+        }
+        enclave_path = config["enclave_path"];
     }
-    enclave_path = config["enclave_path"];
-    if (config.count("storage") == 0 || !config["storage"].is_object()) {
-        std::cerr << "no storage field" << std::endl;
-        return 0;
+    if (config.count("public_key_path")) {
+        if (!config["public_key_path"].is_string()) {
+            std::cerr << "invalid public_key_path field" << std::endl;
+            return 0;
+        }
+        pubkey_path = config["public_key_path"];
     }
-    if (__load_api_instance(config["storage"]) == nullptr) {
-        std::cerr << "failed to load storage config" << std::endl;
-        return 0;
+    if (config.count("storage")) {
+        if (!config["storage"].is_object()) {
+            std::cerr << "no storage field" << std::endl;
+            return 0;
+        }
+        if (__load_api_instance(config["storage"]) == nullptr) {
+            std::cerr << "failed to load storage config" << std::endl;
+            return 0;
+        }
     }
     is_loaded = true;
     return 1;

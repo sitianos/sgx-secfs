@@ -1,7 +1,8 @@
 #include "dirnode.hpp"
-#include "enclave.hpp"
 #include "enclave_t.h"
 #include "filenode.hpp"
+#include "metadata.hpp"
+#include "storage.hpp"
 #include "superinfo.hpp"
 #include "volume.hpp"
 
@@ -9,178 +10,11 @@
 #include <cerrno>
 #include <cstdarg>
 #include <cstdio>
-#include <mbedtls/sha256.h>
 #include <mbusafecrt.h>
-
-static int printf(const char* fmt, ...) {
-    const size_t bufsize = 256;
-    char buf[bufsize] = {'\0'};
-    va_list ap;
-    va_start(ap, fmt);
-    vsnprintf(buf, bufsize, fmt, ap);
-    va_end(ap);
-    ocall_print_string(buf);
-    return 0;
-}
 
 static void hexdump(const void* bytes, size_t len, char* out) {
     for (int i = 0; i < len; i++)
         snprintf(out + i * 2, 3, "%02x", *((char*)bytes + i));
-}
-
-static bool decrypt_buffer(Metadata::Type type, const UUID& uuid, void* obuf, const void* ibuf,
-                           size_t isize) {
-    memcpy_verw_s(obuf, isize, ibuf, isize);
-    return true;
-}
-
-static bool remove_metadata(const UUID& uuid) {
-    char filename[40];
-    sgx_status_t status;
-    int err;
-
-    uuid.unparse(filename);
-    status = ocall_remove_file(filename, &err);
-    if (status != SGX_SUCCESS) {
-        printf("SGX Error in %s(): %s\n", __func__, enclave_err_msg(status));
-        return false;
-    }
-    if (err) {
-        return false;
-    }
-    return true;
-}
-
-template <typename T>
-static T* load_metadata(const UUID& uuid) {
-    void* buf;
-    ssize_t size;
-    char filename[40];
-    sgx_status_t status;
-
-    uuid.unparse(filename);
-
-    status = ocall_load_file(filename, &buf, &size);
-    if (status != SGX_SUCCESS) {
-        printf("SGX Error in %s(): 0x%4x %s\n", __func__, status, enclave_err_msg(status));
-        return nullptr;
-    }
-    if (size < 0) {
-        printf("failed to fetch file\n");
-        return nullptr;
-    }
-
-    // decryption here
-
-    T* metadata = Metadata::create<T>(uuid, buf, size);
-    ocall_free(buf);
-    return metadata;
-}
-
-static bool save_metadata(const Metadata* metadata) {
-    void* buf;
-    size_t size;
-    char filename[40];
-    sgx_status_t status;
-
-    size = metadata->dump_to_buffer(nullptr, 0);
-    buf = malloc(size);
-    if (metadata->dump_to_buffer(buf, size) == 0) {
-        free(buf);
-        return false;
-    }
-
-    // encryption here
-
-    metadata->uuid.unparse(filename);
-    status = ocall_save_file(filename, buf, size);
-    if (status != SGX_SUCCESS) {
-        free(buf);
-        printf("SGX Error in %s(): %s\n", __func__, enclave_err_msg(status));
-        return false;
-    }
-    free(buf);
-    return true;
-}
-
-static bool remove_chunk(const UUID& uuid) {
-    char filename[40];
-    sgx_status_t status;
-    int err;
-
-    uuid.unparse(filename);
-    status = ocall_remove_file(filename, &err);
-    if (status != SGX_SUCCESS) {
-        printf("SGX Error in %s(): %s\n", __func__, enclave_err_msg(status));
-        return false;
-    }
-    if (err) {
-        return false;
-    }
-    return true;
-}
-
-static ssize_t load_chunk(Filenode::Chunk& chunk) {
-    void* buf;
-    ssize_t size;
-    char filename[40];
-    sgx_status_t status;
-
-    chunk.uuid.unparse(filename);
-
-    status = ocall_load_file(filename, &buf, &size);
-    if (status != SGX_SUCCESS) {
-        printf("SGX Error in %s(): 0x%4x %s\n", __func__, status, enclave_err_msg(status));
-        return -1;
-    }
-    if (size < 0) {
-        printf("failed to fetch chunk\n");
-        return -1;
-    }
-
-    chunk.allocate();
-
-    // decryption here
-    memcpy_verw_s(chunk.mem, CHUNKSIZE, buf, size);
-    chunk.modified = false;
-
-    ocall_free(buf);
-    return size;
-}
-
-static ssize_t save_chunk(Filenode::Chunk& chunk) {
-    void* obuf;
-    char filename[40];
-    sgx_status_t status;
-
-    obuf = malloc(CHUNKSIZE);
-
-    // encryption here
-    memcpy_verw_s(obuf, CHUNKSIZE, chunk.mem, CHUNKSIZE);
-
-    chunk.uuid.unparse(filename);
-
-    status = ocall_save_file(filename, obuf, CHUNKSIZE);
-    if (status != SGX_SUCCESS) {
-        printf("SGX Error in %s(): 0x%4x %s\n", __func__, status, enclave_err_msg(status));
-        return -1;
-    }
-    chunk.modified = false;
-    free(obuf);
-    return CHUNKSIZE;
-}
-
-void ecall_debug() {
-    uuid_t uid = {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-
-    UUID uuid1(uid);
-    Dirnode* root = Metadata::create<Dirnode>(uuid1);
-    root->ino = 1;
-    root->name = "";
-    inode_map[1] = std::shared_ptr<Dirnode>(root);
-    save_metadata(root);
-
-    max_ino = 2;
 }
 
 int ecall_fs_lookup(ino_t parent, const char* name, ino_t* ino, stat_buffer_t* statbuf) {
@@ -191,7 +25,7 @@ int ecall_fs_lookup(ino_t parent, const char* name, ino_t* ino, stat_buffer_t* s
         return ENOENT;
     }
     std::shared_ptr<Dirnode> parent_dn;
-    if(!(parent_dn = std::dynamic_pointer_cast<Dirnode>(iter->second))) {
+    if (!(parent_dn = std::dynamic_pointer_cast<Dirnode>(iter->second))) {
         return ENOENT;
     }
     char filename[36];
@@ -256,7 +90,7 @@ int ecall_fs_mkdir(ino_t parent, const char* name, mode_t mode, fuse_ino_t* ino,
         return ENOENT;
     }
     std::shared_ptr<Dirnode> parent_dn;
-    if(!(parent_dn = std::dynamic_pointer_cast<Dirnode>(iter->second))) {
+    if (!(parent_dn = std::dynamic_pointer_cast<Dirnode>(iter->second))) {
         return ENOTDIR;
     }
     for (decltype(Dirnode::dirent)::iterator dent = parent_dn->dirent.begin();
@@ -265,7 +99,7 @@ int ecall_fs_mkdir(ino_t parent, const char* name, mode_t mode, fuse_ino_t* ino,
             return EEXIST;
         }
     }
-    UUID new_uuid;
+    UUID new_uuid = UUID::gen_rand();
     std::shared_ptr<Dirnode> new_dn(Metadata::create<Dirnode>(new_uuid));
     new_dn->ino = max_ino;
     new_dn->name = name;
@@ -295,7 +129,7 @@ int ecall_fs_unlink(fuse_ino_t parent, const char* name) {
         return ENOENT;
     }
     std::shared_ptr<Dirnode> parent_dn;
-    if(!(parent_dn = std::dynamic_pointer_cast<Dirnode>(iter->second))) {
+    if (!(parent_dn = std::dynamic_pointer_cast<Dirnode>(iter->second))) {
         return ENOTDIR;
     }
     for (decltype(Dirnode::dirent)::iterator dent = parent_dn->dirent.begin();
@@ -339,7 +173,7 @@ int ecall_fs_rmdir(fuse_ino_t parent, const char* name) {
         return ENOENT;
     }
     std::shared_ptr<Dirnode> parent_dn;
-    if(!(parent_dn = std::dynamic_pointer_cast<Dirnode>(iter->second))) {
+    if (!(parent_dn = std::dynamic_pointer_cast<Dirnode>(iter->second))) {
         return ENOTDIR;
     }
     for (decltype(Dirnode::dirent)::iterator dent = parent_dn->dirent.begin();
@@ -378,13 +212,13 @@ int ecall_fs_open(fuse_ino_t ino, int flags) {
     return 0;
 }
 
-int ecall_fs_read(fuse_ino_t ino, char* buf, size_t offset, size_t* size) {
+int ecall_fs_read(fuse_ino_t ino, char* buf, off_t offset, size_t* size) {
     auto iter = inode_map.find(ino);
     if (iter == inode_map.end()) {
         return EINVAL;
     }
     std::shared_ptr<Filenode> fn;
-    if(!(fn = std::dynamic_pointer_cast<Filenode>(iter->second))) {
+    if (!(fn = std::dynamic_pointer_cast<Filenode>(iter->second))) {
         return EINVAL;
     }
 
@@ -402,8 +236,8 @@ int ecall_fs_read(fuse_ino_t ino, char* buf, size_t offset, size_t* size) {
 
     for (size_t idx = chunk_st; idx < chunk_en; idx++) {
         Filenode::Chunk& chunk = fn->chunks[idx];
-        size_t off_st = (idx == chunk_st) ? offset % CHUNKSIZE : 0;
-        size_t off_en = (idx == chunk_en - 1) ? (offset + *size - 1) % CHUNKSIZE + 1 : CHUNKSIZE;
+        off_t off_st = (idx == chunk_st) ? offset % CHUNKSIZE : 0;
+        off_t off_en = (idx == chunk_en - 1) ? (offset + *size - 1) % CHUNKSIZE + 1 : CHUNKSIZE;
 
         if (chunk.mem == nullptr) {
             chunk.allocate();
@@ -428,13 +262,13 @@ int ecall_fs_read(fuse_ino_t ino, char* buf, size_t offset, size_t* size) {
     return 0;
 }
 
-int ecall_fs_write(fuse_ino_t ino, const char* buf, size_t offset, size_t* size) {
+int ecall_fs_write(fuse_ino_t ino, const char* buf, off_t offset, size_t* size) {
     auto iter = inode_map.find(ino);
     if (iter == inode_map.end()) {
         return EINVAL;
     }
     std::shared_ptr<Filenode> fn;
-    if(!(fn = std::dynamic_pointer_cast<Filenode>(iter->second))) {
+    if (!(fn = std::dynamic_pointer_cast<Filenode>(iter->second))) {
         return EINVAL;
     }
 
@@ -450,6 +284,7 @@ int ecall_fs_write(fuse_ino_t ino, const char* buf, size_t offset, size_t* size)
         printf("extend chunks from %ld to %ld\n", prev_size, chunk_en);
         fn->chunks.resize(chunk_en);
         for (size_t idx = prev_size; idx < chunk_en; idx++) {
+            fn->chunks[idx].uuid = UUID::gen_rand();
             fn->chunks[idx].allocate();
         }
     }
@@ -460,9 +295,8 @@ int ecall_fs_write(fuse_ino_t ino, const char* buf, size_t offset, size_t* size)
 
     for (size_t idx = chunk_st; idx < chunk_en; idx++) {
         Filenode::Chunk& chunk = fn->chunks[idx];
-        size_t off_st = (idx == chunk_st) ? offset % CHUNKSIZE : 0;
-        size_t off_en = (idx == chunk_en - 1) ? (offset + *size - 1) % CHUNKSIZE + 1 : CHUNKSIZE;
-        printf("idx=%ld, st=%ld, en=%ld mem=%p\n", idx, off_st, off_en, chunk.mem);
+        off_t off_st = (idx == chunk_st) ? offset % CHUNKSIZE : 0;
+        off_t off_en = (idx == chunk_en - 1) ? (offset + *size - 1) % CHUNKSIZE + 1 : CHUNKSIZE;
 
         if (chunk.mem == nullptr) {
             chunk.allocate();
@@ -495,7 +329,7 @@ int ecall_fs_flush(fuse_ino_t ino) {
         return EINVAL;
     }
     std::shared_ptr<Filenode> fn;
-    if(!(fn = std::dynamic_pointer_cast<Filenode>(iter->second))) {
+    if (!(fn = std::dynamic_pointer_cast<Filenode>(iter->second))) {
         return EINVAL;
     }
     if (!save_metadata(fn.get()))
@@ -523,7 +357,7 @@ int ecall_fs_get_dirent(fuse_ino_t ino, dirent_t* buf, size_t count, ssize_t* ge
         return ENOENT;
     }
     std::shared_ptr<Dirnode> parent_dn;
-    if(!(parent_dn = std::dynamic_pointer_cast<Dirnode>(iter->second))) {
+    if (!(parent_dn = std::dynamic_pointer_cast<Dirnode>(iter->second))) {
         return ENOTDIR;
     }
     size_t i = 0;
@@ -553,7 +387,7 @@ int ecall_fs_create(fuse_ino_t parent, const char* name, mode_t mode, fuse_ino_t
         return ENOENT;
     }
     std::shared_ptr<Dirnode> parent_dn;
-    if(!(parent_dn = std::dynamic_pointer_cast<Dirnode>(iter->second))) {
+    if (!(parent_dn = std::dynamic_pointer_cast<Dirnode>(iter->second))) {
         return ENOTDIR;
     }
 
@@ -563,7 +397,7 @@ int ecall_fs_create(fuse_ino_t parent, const char* name, mode_t mode, fuse_ino_t
             return EEXIST;
         }
     }
-    UUID new_uuid;
+    UUID new_uuid = UUID::gen_rand();
     std::shared_ptr<Filenode> new_fn(Metadata::create<Filenode>(new_uuid));
     new_fn->ino = max_ino;
     new_fn->size = 0;

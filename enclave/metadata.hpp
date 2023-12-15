@@ -39,7 +39,7 @@ std::enable_if_t<std::is_base_of<Metadata, T>::value, T*> Metadata::create(const
     if (buf) {
         ret = new T(buf);
     } else {
-        ret = new T();
+        ret = new T;
     }
     if (ret) {
         ret->uuid = uuid;

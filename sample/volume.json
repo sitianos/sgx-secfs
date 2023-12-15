@@ -1,5 +1,5 @@
 {
-    "privkey": "",
+    "public_key_path": "/app/sample/pubkey.pem",
     "volumekey": "",
     "enclave_path": "build/lib/secfs_enclave.signed.so",
     "storage": {

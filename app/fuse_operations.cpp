@@ -17,6 +17,11 @@ static void copy_statbuf(struct stat& st, const struct stat_buffer_t& statbuf) {
     st.st_mode |= 00777;
 }
 
+void secfs_init(void *userdata, struct fuse_conn_info *conn) {
+    (void)userdata;
+    (void)conn;
+}
+
 void secfs_lookup(fuse_req_t req, fuse_ino_t parent, const char* name) {
     struct fuse_entry_param ep;
     fuse_ino_t ino;

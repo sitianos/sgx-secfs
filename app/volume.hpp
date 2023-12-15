@@ -5,6 +5,7 @@
 #include "sgx_urts.h"
 
 #include <nlohmann/json.hpp>
+#include <mbedtls/ecp.h>
 #include <string>
 
 namespace secfs {
@@ -15,6 +16,7 @@ class Volume {
     StorageAPI* api;
     bool is_loaded;
     std::string enclave_path;
+    std::string pubkey_path;
 
   public:
     Volume(const Volume& vol) = delete;
@@ -22,10 +24,13 @@ class Volume {
     Volume& operator=(const Volume& vol) = delete;
     Volume& operator=(Volume&& vol) = delete;
     sgx_enclave_id_t eid;
+    mbedtls_ecp_keypair pubkey;
+
     ~Volume();
     StorageAPI& get_api_instance();
     int init_api_instance();
     int init_enclave();
+    int load_pubkey();
     inline bool loaded() {
         return is_loaded;
     }

@@ -4,6 +4,10 @@
 
 extern "C" {
 
+void secfs_init(void *userdata, struct fuse_conn_info *conn);
+ 
+// void secfs_destroy(void *userdata);
+
 void secfs_lookup(fuse_req_t req, fuse_ino_t parent, const char* name);
 
 void secfs_forget(fuse_req_t req, fuse_ino_t ino, uint64_t nlookup);

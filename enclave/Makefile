@@ -36,7 +36,7 @@ Enclave_Link_Flags := $(Enclave_Security_Link_Flags) \
 	-Wl,--version-script=$(Enclave_Version_Script)
 
 OBJ_DIR := $(BUILD_DIR)/enclave
-objs := uuid.o metadata.o superinfo.o dirnode.o filenode.o volume.o ecall.o enclave.o
+objs := uuid.o metadata.o superinfo.o usertable.o dirnode.o filenode.o volume.o ecall_fs.o ecall_volume.o enclave.o storage.o
 build_objs := $(addprefix $(OBJ_DIR)/, $(objs))
 signed_enclave_img := $(LIB_DIR)/secfs_enclave.signed.so
 enclave_img := $(LIB_DIR)/secfs_enclave.so
@@ -45,10 +45,11 @@ signing_key ?= $(OBJ_DIR)/sign.key
 
 .PHONY: all clean
 
-all: $(enclave_img) $(signed_enclave_img)
+all: $(OBJ_DIR) $(enclave_img) $(signed_enclave_img)
 
 $(OBJ_DIR):
 	mkdir -p $(OBJ_DIR)
+	mkdir -p $(LIB_DIR)
 
 $(enclave_img): $(build_objs) $(OBJ_DIR)/enclave_t.o
 	@echo ---------- link $@ ----------
