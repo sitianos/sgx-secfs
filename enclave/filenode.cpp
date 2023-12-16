@@ -7,7 +7,7 @@ Filenode::Filenode(const filenode_buffer_t* buf)
     ino = buf->ino;
 }
 
-Filenode::Filenode(const void* buf): Filenode(static_cast<const filenode_buffer_t*>(buf)){
+Filenode::Filenode(const void* buf) : Filenode(static_cast<const filenode_buffer_t*>(buf)) {
 }
 
 size_t Filenode::dump(void* buf, size_t size) const {
@@ -42,7 +42,7 @@ size_t Filenode::nlink() const {
 Filenode::Chunk::Chunk(const chunk_t* chunk) : uuid(chunk->uuid), modified(false), mem(nullptr) {
 }
 
-Filenode::Chunk::Chunk(const chunk_t& chunk) : Chunk(&chunk){
+Filenode::Chunk::Chunk(const chunk_t& chunk) : Chunk(&chunk) {
 }
 
 Filenode::Chunk::Chunk(Filenode::Chunk&& chunk)
@@ -51,7 +51,8 @@ Filenode::Chunk::Chunk(Filenode::Chunk&& chunk)
 }
 
 Filenode::Chunk::~Chunk() {
-    free(mem);
+    if (mem)
+        delete[] mem;
 }
 
 void Filenode::Chunk::allocate() {

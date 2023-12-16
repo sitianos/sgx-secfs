@@ -11,7 +11,7 @@
 #include <mbedtls/ecp.h>
 #include <memory>
 
-int ecall_create_volume(mbedtls_ecp_keypair* pubkey, uuid_t superinfo) {
+int ecall_create_volume(mbedtls_ecp_keypair* pubkey, uuid_t uuid) {
     uuid_t temp_uuid = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1};
     UUID sp_uuid(temp_uuid);
     UUID ut_uuid = UUID::gen_rand();
@@ -49,14 +49,12 @@ int ecall_create_volume(mbedtls_ecp_keypair* pubkey, uuid_t superinfo) {
         printf("failed to save superinfo\n");
         return 1;
     }
-    sp_uuid.dump(superinfo);
+    sp_uuid.dump(uuid);
     return 0;
 }
 
-//int ecall_mount_volume(size_t uid, mbedtls_ecp_keypair* key, uuid_t uuid) {
-int ecall_mount_volume() {
-    uuid_t temp_uuid = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1};
-    UUID sp_uuid(temp_uuid);
+int ecall_mount_volume(size_t uid, const mbedtls_ecp_keypair* key, uuid_t uuid) {
+    UUID sp_uuid(uuid);
 
     Superinfo* sp_p = load_metadata<Superinfo>(sp_uuid);
 
@@ -65,8 +63,9 @@ int ecall_mount_volume() {
         return 1;
     }
 
-    max_ino = sp_p->max_ino;
-    Dirnode* root_dir_p = load_metadata<Dirnode>(sp_p->root_dirnode);
+    superinfo = std::shared_ptr<Superinfo>(sp_p);
+
+    Dirnode* root_dir_p = load_metadata<Dirnode>(superinfo->root_dirnode);
 
     if(root_dir_p == nullptr) {
         printf("failed to load root dirnode\n");
@@ -79,6 +78,5 @@ int ecall_mount_volume() {
 
     inode_map[1] = std::shared_ptr<Dirnode>(root_dir_p);
 
-    delete sp_p;
     return 0;
 }

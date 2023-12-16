@@ -45,7 +45,7 @@ signing_key ?= $(OBJ_DIR)/sign.key
 
 .PHONY: all clean
 
-all: $(OBJ_DIR) $(enclave_img) $(signed_enclave_img)
+all: enclave_t.h $(OBJ_DIR) $(enclave_img) $(signed_enclave_img)
 
 $(OBJ_DIR):
 	mkdir -p $(OBJ_DIR)
@@ -74,7 +74,7 @@ enclave_t.h: $(SGX_EDGER8R) enclave.edl
 $(signing_key):
 	openssl genrsa -out $@ -3 3072
 
-$(signed_enclave_img): $(enclave_img) $(signing_key)
+$(signed_enclave_img): $(enclave_img) $(signing_key) $(signing_config)
 	$(SGX_ENCLAVE_SIGNER) sign -key $(signing_key) -enclave $(enclave_img) -out $@ -config $(signing_config)
 
 clean:

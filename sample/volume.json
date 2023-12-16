@@ -1,7 +1,8 @@
 {
-    "public_key_path": "/app/sample/pubkey.pem",
+    "public_key_path": "pubkey.pem",
+    "key_path": "privkey.pem",
     "volumekey": "",
-    "enclave_path": "build/lib/secfs_enclave.signed.so",
+    "enclave_path": "../build/lib/secfs_enclave.signed.so",
     "storage": {
         "type": "local",
         "config": {

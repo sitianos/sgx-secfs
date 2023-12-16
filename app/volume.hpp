@@ -7,6 +7,7 @@
 #include <nlohmann/json.hpp>
 #include <mbedtls/ecp.h>
 #include <string>
+#include <filesystem>
 
 namespace secfs {
 class Volume {
@@ -15,8 +16,10 @@ class Volume {
     StorageAPI* __load_api_instance(json config);
     StorageAPI* api;
     bool is_loaded;
-    std::string enclave_path;
-    std::string pubkey_path;
+    std::filesystem::path enclave_path;
+    std::filesystem::path pubkey_path;
+    std::filesystem::path key_path;
+    std::filesystem::path base_dir;
 
   public:
     Volume(const Volume& vol) = delete;
@@ -25,12 +28,14 @@ class Volume {
     Volume& operator=(Volume&& vol) = delete;
     sgx_enclave_id_t eid;
     mbedtls_ecp_keypair pubkey;
+    mbedtls_ecp_keypair key;
 
     ~Volume();
     StorageAPI& get_api_instance();
     int init_api_instance();
     int init_enclave();
     int load_pubkey();
+    int load_key();
     inline bool loaded() {
         return is_loaded;
     }

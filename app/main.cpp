@@ -49,9 +49,11 @@ int main(int argc, char** argv, char** envp) {
     struct fuse_loop_config config;
     struct secfs_options options = {};
     using secfs::global_vol;
+    uuid_t temp_uuid = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1};
+
     int ret = -1;
 
-    options.volume_config = strdup("");
+    options.volume_config = nullptr;
 
     if (fuse_opt_parse(&args, &options, option_spec, NULL) == -1)
         return 1;
@@ -79,7 +81,7 @@ int main(int argc, char** argv, char** envp) {
         goto err_out1;
     }
 
-    if (strlen(options.volume_config) == 0) {
+    if (options.volume_config == nullptr) {
         std::cerr << "configuration file is not given" << std::endl;
         ret = 1;
         goto err_out1;
@@ -99,10 +101,14 @@ int main(int argc, char** argv, char** envp) {
         std::cerr << "failed to initialize API instance" << std::endl;
         goto err_out1;
     }
+    // if (global_vol.load_key() != 1) {
+    //     std::cerr << "failed to load private key" << std::endl;
+    //     goto err_out1;
+    // }
 
     sgx_status_t sgxstat;
     int err;
-    sgxstat = ecall_mount_volume(global_vol.eid, &err);
+    sgxstat = ecall_mount_volume(global_vol.eid, &err, 1, &global_vol.key, temp_uuid);
     if(sgxstat != SGX_SUCCESS){
         std::cerr << enclave_err_msg(sgxstat) << std::endl;
         goto err_out1;

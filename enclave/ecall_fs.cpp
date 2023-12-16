@@ -101,12 +101,12 @@ int ecall_fs_mkdir(ino_t parent, const char* name, mode_t mode, fuse_ino_t* ino,
     }
     UUID new_uuid = UUID::gen_rand();
     std::shared_ptr<Dirnode> new_dn(Metadata::create<Dirnode>(new_uuid));
-    new_dn->ino = max_ino;
+    new_dn->ino = superinfo->max_ino;
     new_dn->name = name;
     new_dn->dirent.resize(0);
 
     Dirnode::Dirent new_dirent;
-    new_dirent.ino = max_ino;
+    new_dirent.ino = superinfo->max_ino;
     new_dirent.name = name;
     new_dirent.type = T_DT_DIR;
     new_dirent.uuid = new_uuid;
@@ -114,11 +114,12 @@ int ecall_fs_mkdir(ino_t parent, const char* name, mode_t mode, fuse_ino_t* ino,
     save_metadata(parent_dn.get());
     // inode_map.erase(iter);
 
-    inode_map[max_ino] = new_dn;
-    *ino = max_ino;
-    max_ino++;
+    inode_map[superinfo->max_ino] = new_dn;
+    *ino = superinfo->max_ino;
+    superinfo->max_ino++;
     new_dn->dump_stat(statbuf);
 
+    save_metadata(superinfo.get());
     save_metadata(new_dn.get());
     return 0;
 }
@@ -346,6 +347,7 @@ int ecall_fs_flush(fuse_ino_t ino) {
                 continue;
             }
         }
+        chunk.deallocate();
     }
     return 0;
 }
@@ -399,22 +401,23 @@ int ecall_fs_create(fuse_ino_t parent, const char* name, mode_t mode, fuse_ino_t
     }
     UUID new_uuid = UUID::gen_rand();
     std::shared_ptr<Filenode> new_fn(Metadata::create<Filenode>(new_uuid));
-    new_fn->ino = max_ino;
+    new_fn->ino = superinfo->max_ino;
     new_fn->size = 0;
 
     Dirnode::Dirent new_dirent;
-    new_dirent.ino = max_ino;
+    new_dirent.ino = superinfo->max_ino;
     new_dirent.name = name;
     new_dirent.type = T_DT_REG;
     new_dirent.uuid = new_uuid;
     parent_dn->dirent.push_back(new_dirent);
     save_metadata(parent_dn.get());
 
-    inode_map[max_ino] = new_fn;
-    *ino = max_ino;
-    max_ino++;
+    inode_map[superinfo->max_ino] = new_fn;
+    *ino = superinfo->max_ino;
+    superinfo->max_ino++;
     new_fn->dump_stat(statbuf);
 
+    save_metadata(superinfo.get());
     save_metadata(new_fn.get());
 
     return 0;

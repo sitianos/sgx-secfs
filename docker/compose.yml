@@ -13,6 +13,8 @@ services:
        - /dev/fuse
     cap_add:
       - SYS_ADMIN
+    security_opt:
+      - apparmor:unconfined
     volumes:
       - ..:/app
     stdin_open: true

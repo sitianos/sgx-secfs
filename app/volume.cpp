@@ -3,6 +3,8 @@
 #include "enclave.hpp"
 
 #include <iostream>
+#include <mbedtls/ctr_drbg.h>
+#include <mbedtls/entropy.h>
 #include <mbedtls/pk.h>
 
 namespace secfs {
@@ -63,9 +65,52 @@ int Volume::init_api_instance() {
     return api->init();
 }
 
+int Volume::load_key() {
+    if (key_path.empty()) {
+        std::cerr << "path of public key is not provided" << std::endl;
+        return 0;
+    }
+    mbedtls_ecp_keypair_init(&key);
+    mbedtls_pk_context pk_ctx;
+    mbedtls_entropy_context entropy;
+    mbedtls_ctr_drbg_context ctr_drbg;
+    const char* pers = "mbedtls_pk_decrypt";
+    mbedtls_pk_init(&pk_ctx);
+    // mbedtls_entropy_init(&entropy);
+    // mbedtls_ctr_drbg_init(&ctr_drbg);
+
+    // if (mbedtls_ctr_drbg_seed(&ctr_drbg, mbedtls_entropy_func, &entropy, (const unsigned char*)pers,
+    //                           strlen(pers)) != 0) {
+    //     std::cerr << "failed to generate seed" << std::endl;
+    //     return 0;
+    // }
+    if (mbedtls_pk_parse_keyfile(&pk_ctx, key_path.c_str(), ""
+   // , mbedtls_ctr_drbg_random, &ctr_drbg
+    ) != 0) {
+        std::cerr << "failed to parse " << key_path << std::endl;
+        return 0;
+    }
+
+    if (mbedtls_pk_get_type(&pk_ctx) != MBEDTLS_PK_ECKEY) {
+        std::cerr << "given key is not ECDSA private key" << std::endl;
+        return 0;
+    }
+    if (mbedtls_ecp_copy(&key.MBEDTLS_PRIVATE(Q), &mbedtls_pk_ec(pk_ctx)->MBEDTLS_PRIVATE(Q)) !=
+            0 ||
+        mbedtls_ecp_group_copy(&key.MBEDTLS_PRIVATE(grp),
+                               &mbedtls_pk_ec(pk_ctx)->MBEDTLS_PRIVATE(grp)) != 0 ||
+        mbedtls_mpi_copy(&key.MBEDTLS_PRIVATE(d),
+                               &mbedtls_pk_ec(pk_ctx)->MBEDTLS_PRIVATE(d))) {
+        std::cerr << "failed to copy private key" << std::endl;
+        return 0;
+    }
+    mbedtls_pk_free(&pk_ctx);
+    return 1;
+}
+
 int Volume::load_pubkey() {
     if (pubkey_path.empty()) {
-        std::cerr << "path of public key is not provided" << std::endl;
+        std::cerr << "path of private key is not provided" << std::endl;
         return 0;
     }
     mbedtls_ecp_keypair_init(&pubkey);
@@ -76,7 +121,7 @@ int Volume::load_pubkey() {
         return 0;
     }
     if (mbedtls_pk_get_type(&pk_ctx) != MBEDTLS_PK_ECKEY) {
-        std::cerr << "given key is not ECDSA public key" << std::endl;
+        std::cerr << "given key is not ECDSA private key" << std::endl;
         return 0;
     }
     if (mbedtls_ecp_copy(&pubkey.MBEDTLS_PRIVATE(Q), &mbedtls_pk_ec(pk_ctx)->MBEDTLS_PRIVATE(Q)) !=
@@ -115,19 +160,27 @@ int Volume::load_config(const char* config_file) {
         std::cerr << e.what() << std::endl;
         return 0;
     }
+    base_dir = std::filesystem::path(config_file).parent_path();
     if (config.count("enclave_path")) {
         if (!config["enclave_path"].is_string()) {
             std::cerr << "invalid enclave_path field" << std::endl;
             return 0;
         }
-        enclave_path = config["enclave_path"];
+        enclave_path = base_dir / config["enclave_path"];
     }
     if (config.count("public_key_path")) {
         if (!config["public_key_path"].is_string()) {
             std::cerr << "invalid public_key_path field" << std::endl;
             return 0;
         }
-        pubkey_path = config["public_key_path"];
+        pubkey_path = base_dir / config["public_key_path"];
+    }
+    if (config.count("key_path")) {
+        if (!config["key_path"].is_string()) {
+            std::cerr << "invalid key_path field" << std::endl;
+            return 0;
+        }
+        key_path = base_dir / config["key_path"];
     }
     if (config.count("storage")) {
         if (!config["storage"].is_object()) {

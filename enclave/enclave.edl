@@ -6,8 +6,8 @@ enclave {
     trusted {
         public int ecall_create_volume([user_check] mbedtls_ecp_keypair* pubkey, [out, isary] uuid_t superinfo);
 
-        // public int ecall_mount_volume(size_t uid, [user_check] mbedtls_ecp_keypair* key, [in, isary] uuid_t sp_uuid);
-        public int ecall_mount_volume();
+        public int ecall_mount_volume(size_t uid, [user_check] const mbedtls_ecp_keypair* key, [in, isary] uuid_t sp_uuid);
+        // public int ecall_mount_volume();
         public int ecall_fs_getattr(ino_t ino, [out] struct stat_buffer_t* statbuf);
         public int ecall_fs_lookup(ino_t parent, [in, string] const char* name, [out] fuse_ino_t* ino, [out] struct stat_buffer_t* statbuf);
         public int ecall_fs_mkdir(ino_t parent, [in, string] const char* name, mode_t mode, [out] fuse_ino_t* ino, [out] struct stat_buffer_t* statbuf);
