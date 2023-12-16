@@ -53,4 +53,3 @@ FROM sgx as secfs
 
 RUN apt update && apt install -y uuid-dev libfuse3-dev libmbedtls-dev nlohmann-json3-dev
 WORKDIR /app
-RUN make

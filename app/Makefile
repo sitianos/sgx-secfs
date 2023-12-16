@@ -59,7 +59,7 @@ $(BIN_DIR)/secfs_cli: $(addprefix $(OBJ_DIR)/, $(cli_objs)) $(OBJ_DIR)/enclave_u
 	$(CXX) $^ $(LDFLAGS) -o $@
 	@echo
 
-$(build_objs): $(OBJ_DIR)/%.o: %.cpp
+$(build_objs): $(OBJ_DIR)/%.o: %.cpp enclave_u.h
 	@echo ---------- build $@ ----------
 	$(CXX) $< -c $(CXXFLAGS) -o $@
 	@echo

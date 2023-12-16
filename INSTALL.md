@@ -3,6 +3,7 @@ At this time SecFS can be run in Docker container
 
 ## prerequisites:
 - Docker CLI and Docker Compose Plugin
+- Access permission to /var/run/dockerd (by joining docker group) or Docker Rootlesskit
 - Kernel support for FUSE module and access permission to /dev/fuse
 
 ## build
