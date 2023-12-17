@@ -1,9 +1,10 @@
-#include "enclave.hpp"
 #include "enclave_t.h"
 #include "filenode.hpp"
 #include "metadata.hpp"
 
 int printf(const char* fmt, ...);
+
+int print_sgx_err(sgx_status_t sgxstat);
 
 bool save_metadata(const Metadata* metadata);
 
@@ -12,13 +13,14 @@ T* load_metadata(const UUID& uuid) {
     void* buf;
     ssize_t size;
     char filename[40];
-    sgx_status_t status;
+    sgx_status_t sgxstat;
 
     uuid.unparse(filename);
 
-    status = ocall_load_file(filename, &buf, &size);
-    if (status != SGX_SUCCESS) {
-        printf("SGX Error in %s(): 0x%4x %s\n", __func__, status, enclave_err_msg(status));
+    sgxstat = ocall_load_file(filename, &buf, &size);
+    if (sgxstat != SGX_SUCCESS) {
+        printf("SGX Error in %s(): (0x%4x) ", __func__);
+        print_sgx_err(sgxstat);
         return nullptr;
     }
     if (size < 0) {

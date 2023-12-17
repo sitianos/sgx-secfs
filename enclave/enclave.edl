@@ -13,7 +13,7 @@ enclave {
         public int ecall_fs_mkdir(ino_t parent, [in, string] const char* name, mode_t mode, [out] fuse_ino_t* ino, [out] struct stat_buffer_t* statbuf);
         public int ecall_fs_unlink(fuse_ino_t parent, [in, string] const char *name);
         public int ecall_fs_rmdir(fuse_ino_t parent, [in, string] const char *name);
-        public int ecall_fs_open(fuse_ino_t ino, int flags);
+        public int ecall_fs_open(fuse_ino_t ino, enum open_flag_t flags);
         public int ecall_fs_read(fuse_ino_t ino, [user_check] char* buf, off_t offset, [in, out] size_t* size);
         public int ecall_fs_write(fuse_ino_t ino, [user_check] const char* buf, off_t offset, [in, out] size_t* size);
         public int ecall_fs_flush(fuse_ino_t ino);
@@ -27,5 +27,6 @@ enclave {
         void ocall_remove_file([in, string] const char* filename, [out] int* err);
         void ocall_free([user_check] void* mem);
         void ocall_print_string([in, string] const char *str);
+        void ocall_print_sgx_error(sgx_status_t sgxstat);
     };
 };

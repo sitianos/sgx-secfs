@@ -46,3 +46,7 @@ void ocall_print_string(const char* str) {
     printf("%s", str);
     fflush(stdout);
 }
+
+void ocall_print_sgx_error(sgx_status_t sgxstat) {
+    printf("%s\n", enclave_err_msg(sgxstat));
+}

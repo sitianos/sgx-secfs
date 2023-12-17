@@ -1,8 +1,5 @@
 #include "storage.hpp"
 
-#include "enclave.hpp"
-#include "enclave_t.h"
-
 #include <mbusafecrt.h>
 
 static bool decrypt_buffer(Metadata::Type type, const UUID& uuid, void* obuf, const void* ibuf,
@@ -22,11 +19,15 @@ int printf(const char* fmt, ...) {
     return 0;
 }
 
+int print_sgx_err(sgx_status_t sgxstat) {
+    ocall_print_sgx_error(sgxstat);
+}
+
 bool save_metadata(const Metadata* metadata) {
     void* buf;
     size_t size;
     char filename[40];
-    sgx_status_t status;
+    sgx_status_t sgxstat;
 
     size = metadata->dump_to_buffer(nullptr, 0);
     buf = malloc(size);
@@ -38,10 +39,11 @@ bool save_metadata(const Metadata* metadata) {
     // encryption here
 
     metadata->uuid.unparse(filename);
-    status = ocall_save_file(filename, buf, size);
-    if (status != SGX_SUCCESS) {
+    sgxstat = ocall_save_file(filename, buf, size);
+    if (sgxstat != SGX_SUCCESS) {
         free(buf);
-        printf("SGX Error in %s(): %s\n", __func__, enclave_err_msg(status));
+        printf("SGX Error in %s(): (0x%4x) ", __func__);
+        print_sgx_err(sgxstat);
         return false;
     }
     free(buf);
@@ -52,13 +54,14 @@ ssize_t load_chunk(Filenode::Chunk& chunk) {
     void* buf;
     ssize_t size;
     char filename[40];
-    sgx_status_t status;
+    sgx_status_t sgxstat;
 
     chunk.uuid.unparse(filename);
 
-    status = ocall_load_file(filename, &buf, &size);
-    if (status != SGX_SUCCESS) {
-        printf("SGX Error in %s(): 0x%4x %s\n", __func__, status, enclave_err_msg(status));
+    sgxstat = ocall_load_file(filename, &buf, &size);
+    if (sgxstat != SGX_SUCCESS) {
+        printf("SGX Error in %s(): (0x%4x) ", __func__);
+        print_sgx_err(sgxstat);
         return -1;
     }
     if (size < 0) {
@@ -78,13 +81,14 @@ ssize_t load_chunk(Filenode::Chunk& chunk) {
 
 bool remove_metadata(const UUID& uuid) {
     char filename[40];
-    sgx_status_t status;
+    sgx_status_t sgxstat;
     int err;
 
     uuid.unparse(filename);
-    status = ocall_remove_file(filename, &err);
-    if (status != SGX_SUCCESS) {
-        printf("SGX Error in %s(): %s\n", __func__, enclave_err_msg(status));
+    sgxstat = ocall_remove_file(filename, &err);
+    if (sgxstat != SGX_SUCCESS) {
+        printf("SGX Error in %s(): (0x%4x) ", __func__);
+        print_sgx_err(sgxstat);
         return false;
     }
     if (err) {
@@ -96,7 +100,7 @@ bool remove_metadata(const UUID& uuid) {
 ssize_t save_chunk(Filenode::Chunk& chunk) {
     void* obuf;
     char filename[40];
-    sgx_status_t status;
+    sgx_status_t sgxstat;
 
     obuf = malloc(CHUNKSIZE);
 
@@ -105,9 +109,10 @@ ssize_t save_chunk(Filenode::Chunk& chunk) {
 
     chunk.uuid.unparse(filename);
 
-    status = ocall_save_file(filename, obuf, CHUNKSIZE);
-    if (status != SGX_SUCCESS) {
-        printf("SGX Error in %s(): 0x%4x %s\n", __func__, status, enclave_err_msg(status));
+    sgxstat = ocall_save_file(filename, obuf, CHUNKSIZE);
+    if (sgxstat != SGX_SUCCESS) {
+        printf("SGX Error in %s(): (0x%4x) ", __func__);
+        print_sgx_err(sgxstat);
         return -1;
     }
     chunk.modified = false;
@@ -117,13 +122,14 @@ ssize_t save_chunk(Filenode::Chunk& chunk) {
 
 bool remove_chunk(const UUID& uuid) {
     char filename[40];
-    sgx_status_t status;
+    sgx_status_t sgxstat;
     int err;
 
     uuid.unparse(filename);
-    status = ocall_remove_file(filename, &err);
-    if (status != SGX_SUCCESS) {
-        printf("SGX Error in %s(): %s\n", __func__, enclave_err_msg(status));
+    sgxstat = ocall_remove_file(filename, &err);
+    if (sgxstat != SGX_SUCCESS) {
+        printf("SGX Error in %s(): (0x%4x) ", __func__);
+        print_sgx_err(sgxstat);
         return false;
     }
     if (err) {

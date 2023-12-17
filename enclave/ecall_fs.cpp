@@ -7,6 +7,7 @@
 #include "volume.hpp"
 
 #include <algorithm>
+#include <exception>
 #include <cerrno>
 #include <cstdarg>
 #include <cstdio>
@@ -209,7 +210,25 @@ int ecall_fs_rmdir(fuse_ino_t parent, const char* name) {
     return ENOENT;
 }
 
-int ecall_fs_open(fuse_ino_t ino, int flags) {
+int ecall_fs_open(fuse_ino_t ino, open_flag_t flags) {
+    auto iter = inode_map.find(ino);
+    if (iter == inode_map.end()) {
+        return EACCES;
+    }
+    std::shared_ptr<Filenode> fn;
+    if (!(fn = std::dynamic_pointer_cast<Filenode>(iter->second))) {
+        return EACCES;
+    }
+    // here is permission check
+    if(flags & OF_TRUNC) {
+        for (Filenode::Chunk& chunk : fn->chunks) {
+            if (!remove_chunk(chunk.uuid)) {
+                printf("failed to remove chunk\n");
+            }     
+        }
+        fn->chunks.resize(0);
+        fn->size = 0;
+    }
     return 0;
 }
 
@@ -244,8 +263,7 @@ int ecall_fs_read(fuse_ino_t ino, char* buf, off_t offset, size_t* size) {
             chunk.allocate();
             ssize_t rsize = load_chunk(chunk);
             if (rsize < 0) {
-                free(chunk.mem);
-                chunk.mem = nullptr;
+                chunk.deallocate();
                 return EINVAL;
             }
             if (rsize > CHUNKSIZE) {
@@ -276,24 +294,20 @@ int ecall_fs_write(fuse_ino_t ino, const char* buf, off_t offset, size_t* size) 
     size_t chunk_st = offset / CHUNKSIZE;
     size_t chunk_en = (offset + *size + CHUNKSIZE - 1) / CHUNKSIZE;
 
-    for (int i = 0; i < fn->chunks.size(); i++) {
-        printf("idx=%ld, mem=%p\n", i, fn->chunks[i].mem);
-    }
-
     if (chunk_en > fn->chunks.size()) {
         size_t prev_size = fn->chunks.size();
-        printf("extend chunks from %ld to %ld\n", prev_size, chunk_en);
         fn->chunks.resize(chunk_en);
         for (size_t idx = prev_size; idx < chunk_en; idx++) {
             fn->chunks[idx].uuid = UUID::gen_rand();
-            fn->chunks[idx].allocate();
+            try {
+                fn->chunks[idx].allocate();
+            } catch(std::exception& e) {
+                printf("%s\n", e.what());
+                return EFBIG;
+            }
         }
     }
     size_t wsize = 0;
-    for (int i = 0; i < fn->chunks.size(); i++) {
-        printf("idx=%ld, mem=%p\n", i, fn->chunks[i].mem);
-    }
-
     for (size_t idx = chunk_st; idx < chunk_en; idx++) {
         Filenode::Chunk& chunk = fn->chunks[idx];
         off_t off_st = (idx == chunk_st) ? offset % CHUNKSIZE : 0;
@@ -314,7 +328,6 @@ int ecall_fs_write(fuse_ino_t ino, const char* buf, off_t offset, size_t* size) 
                 }
             }
         }
-
         memcpy_verw_s(chunk.mem + off_st, CHUNKSIZE - off_st, buf + wsize, off_en - off_st);
         chunk.modified = true;
         wsize += off_en - off_st;

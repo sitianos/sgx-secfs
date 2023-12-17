@@ -117,8 +117,18 @@ void secfs_rmdir(fuse_req_t req, fuse_ino_t parent, const char* name) {
 }
 
 void secfs_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info* fi) {
-    (void)ino;
-    fuse_reply_open(req, fi);
+    sgx_status_t sgxstat;
+    int err;
+
+    sgxstat = ecall_fs_open(secfs::global_vol.eid, &err, ino, (open_flag_t)fi->flags);
+    if (sgxstat != SGX_SUCCESS) {
+        std::cerr << enclave_err_msg(sgxstat) << std::endl;
+        fuse_reply_err(req, ENOENT);
+    } else if(err) {
+        fuse_reply_err(req, err);
+    } else {
+        fuse_reply_open(req, fi);
+    }
 }
 
 void secfs_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fuse_file_info* fi) {

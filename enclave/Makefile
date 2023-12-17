@@ -21,8 +21,8 @@ Crypto_Library_Name := sgx_tcrypto
 
 Enclave_Include_Paths := $(addprefix -I, . ../include $(SGX_SDK)/include $(SGX_SDK)/include/libcxx $(SGX_SDK)/include/tlibc) $(shell pkg-config fuse3 --cflags)
 
-CFLAGS := -nostdinc -fvisibility=hidden -fpie -fstack-protector -fno-builtin-printf $(Enclave_Include_Paths)
-CXXFLAGS := $(CFLAGS) -nostdinc++
+CFLAGS :=  $(SGX_COMMON_CFLAGS) -nostdinc -fvisibility=hidden -fpie -fstack-protector -fno-builtin-printf $(Enclave_Include_Paths)
+CXXFLAGS := $(SGX_COMMON_CXXFLAGS) $(CFLAGS) -nostdinc++
 
 Enclave_Security_Link_Flags := -Wl,-z,relro,-z,now,-z,noexecstack
 
@@ -36,7 +36,7 @@ Enclave_Link_Flags := $(Enclave_Security_Link_Flags) \
 	-Wl,--version-script=$(Enclave_Version_Script)
 
 OBJ_DIR := $(BUILD_DIR)/enclave
-objs := uuid.o metadata.o superinfo.o usertable.o dirnode.o filenode.o volume.o ecall_fs.o ecall_volume.o enclave.o storage.o
+objs := uuid.o metadata.o superinfo.o usertable.o dirnode.o filenode.o volume.o ecall_fs.o ecall_volume.o storage.o
 build_objs := $(addprefix $(OBJ_DIR)/, $(objs))
 signed_enclave_img := $(LIB_DIR)/secfs_enclave.signed.so
 enclave_img := $(LIB_DIR)/secfs_enclave.so
