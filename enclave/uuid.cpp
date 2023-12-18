@@ -17,8 +17,12 @@ UUID::UUID(const unsigned char* bytes) {
 }
 
 UUID& UUID::operator=(const UUID& uuid) {
-    std::memcpy(data, uuid.data, sizeof(uuid.data));
+    std::memcpy(data, uuid.data, sizeof(data));
     return *this;
+}
+
+bool UUID::operator==(const UUID& uuid) {
+    return std::memcpy(data, uuid.data, sizeof(data)) == 0;
 }
 
 void UUID::dump(unsigned char* out) const {

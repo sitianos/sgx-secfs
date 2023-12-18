@@ -2,7 +2,7 @@
 
 #include <mbusafecrt.h>
 
-static bool decrypt_buffer(Metadata::Type type, const UUID& uuid, void* obuf, const void* ibuf,
+static bool decrypt_buffer(const UUID& uuid, void* obuf, const void* ibuf,
                            size_t isize) {
     memcpy_verw_s(obuf, isize, ibuf, isize);
     return true;
@@ -29,9 +29,9 @@ bool save_metadata(const Metadata* metadata) {
     char filename[40];
     sgx_status_t sgxstat;
 
-    size = metadata->dump_to_buffer(nullptr, 0);
+    size = metadata->dump(nullptr, 0);
     buf = malloc(size);
-    if (metadata->dump_to_buffer(buf, size) == 0) {
+    if (metadata->dump(buf, size) == 0) {
         free(buf);
         return false;
     }

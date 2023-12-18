@@ -29,10 +29,6 @@ int ecall_fs_lookup(ino_t parent, const char* name, ino_t* ino, stat_buffer_t* s
     if (!(parent_dn = std::dynamic_pointer_cast<Dirnode>(iter->second))) {
         return ENOENT;
     }
-    char filename[36];
-    void* ubuf;
-    ssize_t fsize;
-    sgx_status_t status;
     for (decltype(Dirnode::dirent)::iterator dent = parent_dn->dirent.begin();
          dent != parent_dn->dirent.end(); dent++) {
         if (dent->name == name) {
@@ -48,11 +44,9 @@ int ecall_fs_lookup(ino_t parent, const char* name, ino_t* ino, stat_buffer_t* s
 
             if (dent->type == T_DT_DIR) {
                 Dirnode* dir_p = load_metadata<Dirnode>(dent->uuid);
-                // Dirnode* dir_p = Metadata::create<Dirnode>(dent->uuid, ubuf, fsize);
                 ino_p = dir_p;
             } else if (dent->type == T_DT_REG) {
                 Filenode* file_p = load_metadata<Filenode>(dent->uuid);
-                // Filenode* file_p = Metadata::create<Filenode>(dent->uuid, ubuf, fsize);
                 ino_p = file_p;
             } else {
                 printf("only file and directory lookup is supported\n");
@@ -141,21 +135,21 @@ int ecall_fs_unlink(fuse_ino_t parent, const char* name) {
                 return EISDIR;
             }
             Filenode* file_p = load_metadata<Filenode>(dent->uuid);
-            if (file_p) {
-                if (!remove_metadata(dent->uuid)) {
-                    printf("failed to remove metadata\n");
-                    return EACCES;
-                }
-                for (decltype(Filenode::chunks)::iterator chunk = file_p->chunks.begin();
-                     chunk != file_p->chunks.end(); chunk++) {
-                    if (!remove_chunk(chunk->uuid)) {
-                        printf("failed to remove chunk\n");
-                    }
-                }
-            } else {
+            if(file_p == nullptr) {
                 printf("failed to load filenode\n");
+                return EACCES;          
+            }
+            if (!remove_metadata(dent->uuid)) {
+                printf("failed to remove metadata\n");
                 return EACCES;
             }
+            for (Filenode::Chunk& chunk : file_p->chunks) {
+                if (!remove_chunk(chunk.uuid)) {
+                    printf("failed to remove chunk\n");
+                }
+            }
+
+            delete file_p;
 
             parent_dn->dirent.erase(dent);
             if (!save_metadata(parent_dn.get())) {
@@ -185,18 +179,18 @@ int ecall_fs_rmdir(fuse_ino_t parent, const char* name) {
                 return ENOTDIR;
             }
             Dirnode* dir_p = load_metadata<Dirnode>(dent->uuid);
-            if (dir_p) {
-                if (dir_p->dirent.size() != 0) {
-                    return ENOTEMPTY;
-                }
-                if (!remove_metadata(dent->uuid)) {
-                    printf("failed to remove metadata\n");
-                    return EACCES;
-                }
-            } else {
+            if (dir_p == nullptr) {
                 printf("failed to load dirnode\n");
                 return EACCES;
             }
+            if (dir_p->dirent.size() != 0) {
+                return ENOTEMPTY;
+            }
+            if (!remove_metadata(dent->uuid)) {
+                printf("failed to remove metadata\n");
+                return EACCES;
+            }
+            delete dir_p;
 
             parent_dn->dirent.erase(dent);
             if (!save_metadata(parent_dn.get())) {
