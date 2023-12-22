@@ -16,6 +16,7 @@ class Volume {
     StorageAPI* __load_api_instance(json config);
     StorageAPI* api;
     bool is_loaded;
+    json config;
     std::filesystem::path enclave_path;
     std::filesystem::path pubkey_path;
     std::filesystem::path key_path;
@@ -34,12 +35,14 @@ class Volume {
     StorageAPI& get_api_instance();
     int init_api_instance();
     int init_enclave();
-    int load_pubkey();
-    int load_key();
+    bool load_pubkey();
+    bool load_key();
     inline bool loaded() {
         return is_loaded;
     }
-    int load_config(const char* config_file);
+    bool create_volume();
+    bool load_config(const char* config_file);
+    bool dump_config(const char* config_file);
     static Volume& get_instance();
 };
 

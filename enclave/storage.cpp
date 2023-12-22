@@ -50,6 +50,24 @@ bool save_metadata(const Metadata* metadata) {
     return true;
 }
 
+bool remove_metadata(const UUID& uuid) {
+    char filename[40];
+    sgx_status_t sgxstat;
+    int err;
+
+    uuid.unparse(filename);
+    sgxstat = ocall_remove_file(filename, &err);
+    if (sgxstat != SGX_SUCCESS) {
+        printf("SGX Error in %s(): (0x%4x) ", __func__);
+        print_sgx_err(sgxstat);
+        return false;
+    }
+    if (err) {
+        return false;
+    }
+    return true;
+}
+
 ssize_t load_chunk(Filenode::Chunk& chunk) {
     void* buf;
     ssize_t size;
@@ -79,30 +97,17 @@ ssize_t load_chunk(Filenode::Chunk& chunk) {
     return size;
 }
 
-bool remove_metadata(const UUID& uuid) {
-    char filename[40];
-    sgx_status_t sgxstat;
-    int err;
-
-    uuid.unparse(filename);
-    sgxstat = ocall_remove_file(filename, &err);
-    if (sgxstat != SGX_SUCCESS) {
-        printf("SGX Error in %s(): (0x%4x) ", __func__);
-        print_sgx_err(sgxstat);
-        return false;
-    }
-    if (err) {
-        return false;
-    }
-    return true;
-}
-
 ssize_t save_chunk(Filenode::Chunk& chunk) {
     void* obuf;
     char filename[40];
     sgx_status_t sgxstat;
 
-    obuf = malloc(CHUNKSIZE);
+    try {
+        obuf = new char[CHUNKSIZE];
+    } catch(std::exception &e) {
+        printf("%s\n", e.what());
+        return -1;
+    }
 
     // encryption here
     memcpy_verw_s(obuf, CHUNKSIZE, chunk.mem, CHUNKSIZE);
@@ -116,7 +121,8 @@ ssize_t save_chunk(Filenode::Chunk& chunk) {
         return -1;
     }
     chunk.modified = false;
-    free(obuf);
+    
+    delete obuf;
     return CHUNKSIZE;
 }
 

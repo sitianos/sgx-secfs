@@ -1,11 +1,11 @@
 #pragma once
 
-#include "bridge.hpp"
+#include "internal.hpp"
 #include "uuid.hpp"
 
 class Metadata {
   public:
-    virtual ~Metadata() = 0;
+    virtual ~Metadata() = default;
 
     // if buf == nullptr, returns required size
     // if size < required size, returns 0

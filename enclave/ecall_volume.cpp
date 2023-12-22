@@ -11,9 +11,8 @@
 #include <mbedtls/ecp.h>
 #include <memory>
 
-int ecall_create_volume(mbedtls_ecp_keypair* pubkey, uuid_t uuid) {
-    uuid_t temp_uuid = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1};
-    UUID sp_uuid(temp_uuid);
+int ecall_create_volume(mbedtls_ecp_keypair* pubkey, char* sp_uuid_out) {
+    UUID sp_uuid = UUID::gen_rand();
     UUID ut_uuid = UUID::gen_rand();
     UUID rt_uuid = UUID::gen_rand();
     std::unique_ptr<Superinfo> sp_info(Metadata::create<Superinfo>(sp_uuid));
@@ -49,7 +48,7 @@ int ecall_create_volume(mbedtls_ecp_keypair* pubkey, uuid_t uuid) {
         printf("failed to save superinfo\n");
         return 1;
     }
-    sp_uuid.dump(uuid);
+    sp_uuid.unparse(sp_uuid_out);
     return 0;
 }
 

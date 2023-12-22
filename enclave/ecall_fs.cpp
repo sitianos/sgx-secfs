@@ -267,6 +267,7 @@ int ecall_fs_read(fuse_ino_t ino, char* buf, off_t offset, size_t* size) {
         }
         memcpy_verw_s(buf + wsize, *size - wsize, chunk.mem + off_st, off_en - off_st);
         wsize += off_en - off_st;
+        chunk.deallocate();
     }
     if (wsize != *size) {
         printf("write size and read size does not match");
@@ -288,17 +289,11 @@ int ecall_fs_write(fuse_ino_t ino, const char* buf, off_t offset, size_t* size) 
     size_t chunk_st = offset / CHUNKSIZE;
     size_t chunk_en = (offset + *size + CHUNKSIZE - 1) / CHUNKSIZE;
 
+    size_t prev_size = fn->chunks.size();
     if (chunk_en > fn->chunks.size()) {
-        size_t prev_size = fn->chunks.size();
         fn->chunks.resize(chunk_en);
         for (size_t idx = prev_size; idx < chunk_en; idx++) {
             fn->chunks[idx].uuid = UUID::gen_rand();
-            try {
-                fn->chunks[idx].allocate();
-            } catch(std::exception& e) {
-                printf("%s\n", e.what());
-                return EFBIG;
-            }
         }
     }
     size_t wsize = 0;
@@ -307,24 +302,30 @@ int ecall_fs_write(fuse_ino_t ino, const char* buf, off_t offset, size_t* size) 
         off_t off_st = (idx == chunk_st) ? offset % CHUNKSIZE : 0;
         off_t off_en = (idx == chunk_en - 1) ? (offset + *size - 1) % CHUNKSIZE + 1 : CHUNKSIZE;
 
-        if (chunk.mem == nullptr) {
-            chunk.allocate();
-            if (off_st != 0 || off_en != CHUNKSIZE) {
-                ssize_t rsize = load_chunk(chunk);
-                if (rsize < 0) {
-                    chunk.deallocate();
-                    return EINVAL;
-                }
-                if (rsize > CHUNKSIZE) {
-                    chunk.deallocate();
-                    printf("fetched chunk is larger (%ld) than CHUNKSIZE\n", rsize);
-                    return EINVAL;
-                }
+        chunk.allocate();
+        if (idx < prev_size && (off_st != 0 || off_en != CHUNKSIZE)) {
+            ssize_t rsize = load_chunk(chunk);
+            if (rsize < 0) {
+                chunk.deallocate();
+                return EINVAL;
+            }
+            if (rsize > CHUNKSIZE) {
+                chunk.deallocate();
+                printf("fetched chunk is larger (%ld) than CHUNKSIZE\n", rsize);
+                return EINVAL;
             }
         }
+
         memcpy_verw_s(chunk.mem + off_st, CHUNKSIZE - off_st, buf + wsize, off_en - off_st);
         chunk.modified = true;
         wsize += off_en - off_st;
+        if( off_en == CHUNKSIZE) {
+            if (save_chunk(chunk) < 0) {
+                printf("failed to save chunk\n");
+                break;
+            }
+            chunk.deallocate();
+        }
     }
     *size = wsize;
     fn->size = std::max(fn->size, offset + wsize);
@@ -359,10 +360,22 @@ int ecall_fs_flush(fuse_ino_t ino) {
     return 0;
 }
 
-int ecall_fs_get_dirent(fuse_ino_t ino, dirent_t* buf, size_t count, ssize_t* getcount) {
+int ecall_fs_get_dirent_size(fuse_ino_t ino, size_t* entnum) {
     auto iter = inode_map.find(ino);
     if (iter == inode_map.end()) {
-        *getcount = 0;
+        return ENOENT;
+    }
+    std::shared_ptr<Dirnode> parent_dn;
+    if (!(parent_dn = std::dynamic_pointer_cast<Dirnode>(iter->second))) {
+        return ENOTDIR;
+    }
+    *entnum = parent_dn->dirent.size();
+    return 0;
+}
+
+int ecall_fs_get_dirent(fuse_ino_t ino, dirent_t* buf, size_t count) {
+    auto iter = inode_map.find(ino);
+    if (iter == inode_map.end()) {
         return ENOENT;
     }
     std::shared_ptr<Dirnode> parent_dn;
@@ -376,7 +389,6 @@ int ecall_fs_get_dirent(fuse_ino_t ino, dirent_t* buf, size_t count, ssize_t* ge
         if (i >= count)
             break;
     }
-    *getcount = i;
     return 0;
 }
 

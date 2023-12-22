@@ -190,26 +190,32 @@ void secfs_flush(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info* fi) {
 void secfs_opendir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info* fi) {
     sgx_status_t sgxstat;
     int err;
-    size_t count = 16;
-    ssize_t getcount;
-    struct dirent_t* dirp = (struct dirent_t*)malloc(sizeof(struct dirent_t) * count);
+    size_t count;
 
-    sgxstat = ecall_fs_get_dirent(secfs::global_vol.eid, &err, ino, dirp, count, &getcount);
+    sgxstat = ecall_fs_get_dirent_size(secfs::global_vol.eid, &err, ino, &count);
     if (sgxstat != SGX_SUCCESS) {
         std::cerr << enclave_err_msg(sgxstat) << std::endl;
         fuse_reply_err(req, ENOENT);
-        free(dirp);
     } else if (err) {
         fuse_reply_err(req, err);
-        free(dirp);
+    }
+
+    struct dirent_t* dirp = (struct dirent_t*)malloc(sizeof(struct dirent_t) * count);
+
+    sgxstat = ecall_fs_get_dirent(secfs::global_vol.eid, &err, ino, dirp, count);
+    if (sgxstat != SGX_SUCCESS) {
+        std::cerr << enclave_err_msg(sgxstat) << std::endl;
+        fuse_reply_err(req, ENOENT);
+    } else if (err) {
+        fuse_reply_err(req, err);
     } else {
-        std::vector<dirent_t>* dirvec = new std::vector<dirent_t>(dirp, dirp + getcount);
+        std::vector<dirent_t>* dirvec = new std::vector<dirent_t>(dirp, dirp + count);
         fi->fh = (uint64_t)dirvec;
 
         fuse_log(FUSE_LOG_DEBUG, "opendir(ino=%ld get %ld entries)\n", ino, dirvec->size());
         fuse_reply_open(req, fi);
-        free(dirp);
     }
+    free(dirp);
 }
 
 void secfs_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t offset,

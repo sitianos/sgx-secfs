@@ -1,32 +1,28 @@
-#include "volume.hpp"
-#include "enclave_u.h"
 #include "enclave.hpp"
+#include "enclave_u.h"
+#include "volume.hpp"
 
-#include <iostream>
 #include <cstring>
 #include <getopt.h>
+#include <iostream>
 
 using secfs::global_vol;
 
-static int cmd_create_volume(int argc, char **argv) {
-    struct option options[] = {
-        {"config", required_argument, NULL, 'c'},
-        {0, 0, NULL, 0}
-    };
+static int cmd_create_volume(int argc, char** argv) {
+    struct option options[] = {{"config", required_argument, NULL, 'c'}, {0, 0, NULL, 0}};
     int opt;
     int longindex;
-    const char *volume_config = NULL;
-    while((opt = getopt_long(argc, argv, "", options, &longindex)) != -1){
-        switch(opt){
-          case 'c':
+    const char* volume_config = NULL;
+    while ((opt = getopt_long(argc, argv, "", options, &longindex)) != -1) {
+        switch (opt) {
+        case 'c':
             volume_config = optarg;
         }
     }
-    if(! volume_config) {
+    if (!volume_config) {
         std::cerr << "configuration file is not given" << std::endl;
         return 1;
     }
-    std::cout << "load " << volume_config << std::endl;
 
     global_vol.load_config(volume_config);
 
@@ -47,28 +43,21 @@ static int cmd_create_volume(int argc, char **argv) {
         return 1;
     }
 
-    int err;
-    sgx_status_t sgxstat;
-    uuid_t sp_uuid;
-
-    sgxstat = ecall_create_volume(global_vol.eid, &err, &global_vol.pubkey, sp_uuid);
-
-    if (sgxstat != SGX_SUCCESS) {
-        std::cerr << enclave_err_msg(sgxstat) << std::endl;
-        return 1;
-    } else if(err) {
-        std::cerr << "failed to create volume within enclave" << std::endl;
+    if (!global_vol.create_volume()) {
+        std::cerr << "failed to create volume" << std::endl;
         return 1;
     }
-    std::cout << std::dec << std::endl;
+    if (!global_vol.dump_config(volume_config)) {
+        std::cerr << "failed to dump to volume configuration file" << std::endl;
+        return 1;
+    }
+
     return 0;
 }
 
-
-int main(int argc, char **argv, char** envp) {
+int main(int argc, char** argv, char** envp) {
     (void)envp;
-    if(std::strcpy(argv[1], "create")) {
+    if (std::strcpy(argv[1], "create")) {
         return cmd_create_volume(argc - 1, &argv[1]);
     }
-
 }
