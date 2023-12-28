@@ -8,10 +8,20 @@
 #include "uuid.hpp"
 #include "volume.hpp"
 
+#include <cstring>
 #include <mbedtls/ecp.h>
 #include <memory>
+#include <sgx_trts.h>
+#include <sgx_tseal.h>
 
-int ecall_create_volume(mbedtls_ecp_keypair* pubkey, char* sp_uuid_out) {
+size_t ecall_calc_volkey_size() {
+    return sgx_calc_sealed_data_size(strlen(volkey_aad), VOLKEYSIZE);
+}
+
+int ecall_create_volume(
+    mbedtls_ecp_keypair* pubkey, uuid_t sp_uuid_out, unsigned char* sealed_volkey,
+    size_t volkey_size
+) {
     UUID sp_uuid = UUID::gen_rand();
     UUID ut_uuid = UUID::gen_rand();
     UUID rt_uuid = UUID::gen_rand();
@@ -35,6 +45,29 @@ int ecall_create_volume(mbedtls_ecp_keypair* pubkey, char* sp_uuid_out) {
     sp_info->root_dirnode = rt_uuid;
     sp_info->max_ino = 2;
 
+    sgx_status_t sgxstat;
+    sgx_read_rand(volkey, sizeof(volkey));
+
+    print_hex(volkey, sizeof(volkey));
+
+    size_t key_size = sgx_calc_sealed_data_size(strlen(volkey_aad), VOLKEYSIZE);
+    if (volkey_size < key_size) {
+        printf("given key size is lower than required key size\n");
+        return 1;
+    }
+
+    sgxstat = sgx_seal_data(
+        strlen(volkey_aad), (unsigned char*)volkey_aad, sizeof(volkey), volkey, volkey_size,
+        (sgx_sealed_data_t*)sealed_volkey
+    );
+
+    if (sgxstat != SGX_SUCCESS) {
+        printf("SGX Error in %s(): (0x%4x) ", __func__);
+        print_sgx_err(sgxstat);
+        memset(sealed_volkey, 0, volkey_size);
+        return 1;
+    }
+
     if (!save_metadata(user_tb.get())) {
         printf("failed to save usertable\n");
         return 1;
@@ -48,29 +81,56 @@ int ecall_create_volume(mbedtls_ecp_keypair* pubkey, char* sp_uuid_out) {
         printf("failed to save superinfo\n");
         return 1;
     }
-    sp_uuid.unparse(sp_uuid_out);
+    sp_uuid.dump(sp_uuid_out);
     return 0;
 }
 
-int ecall_mount_volume(size_t uid, const mbedtls_ecp_keypair* key, uuid_t uuid) {
-    UUID sp_uuid(uuid);
-
-    Superinfo* sp_p = load_metadata<Superinfo>(sp_uuid);
-
-    if(sp_p == nullptr) {
-        printf("failed to load superinfo\n");
+int ecall_mount_volume(
+    size_t uid, const mbedtls_ecp_keypair* key, uuid_t sp_uuid_in,
+    const unsigned char* sealed_volkey, size_t volkey_size
+) {
+    sgx_status_t sgxstat;
+    uint32_t mac_text_len = sgx_get_add_mac_txt_len((const sgx_sealed_data_t*)sealed_volkey);
+    uint32_t decrypt_data_len = sgx_get_encrypt_txt_len((const sgx_sealed_data_t*)sealed_volkey);
+    if (mac_text_len != strlen(volkey_aad) || decrypt_data_len != VOLKEYSIZE) {
+        printf("length of aad or volume key does not match\n");
+        return 1;
+    }
+    if (mac_text_len > volkey_size || decrypt_data_len > volkey_size) {
+        printf("the size of given sealed volume key is bigger than expected\n");
         return 1;
     }
 
+    unsigned char dec_volkey_aad[mac_text_len];
+
+    sgxstat = sgx_unseal_data(
+        (const sgx_sealed_data_t*)sealed_volkey, dec_volkey_aad, &mac_text_len, volkey,
+        &decrypt_data_len
+    );
+    if (sgxstat != SGX_SUCCESS) {
+        printf("SGX Error in %s(): (0x%4x) ", __func__);
+        print_sgx_err(sgxstat);
+        return 1;
+    }
+
+    print_hex(volkey, sizeof(volkey));
+
+    UUID sp_uuid(sp_uuid_in);
+    Superinfo* sp_p = load_metadata<Superinfo>(sp_uuid);
+
+    if (sp_p == nullptr) {
+        printf("failed to load superinfo\n");
+        return 1;
+    }
     superinfo = std::shared_ptr<Superinfo>(sp_p);
 
     Dirnode* root_dir_p = load_metadata<Dirnode>(superinfo->root_dirnode);
 
-    if(root_dir_p == nullptr) {
+    if (root_dir_p == nullptr) {
         printf("failed to load root dirnode\n");
         return 1;
     }
-    if(root_dir_p->ino != 1) {
+    if (root_dir_p->ino != 1) {
         printf("inode number of root directory is not 1\n");
         return 1;
     }

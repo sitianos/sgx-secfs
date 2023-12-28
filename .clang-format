@@ -8,6 +8,7 @@ AllowShortLoopsOnASingleLine: false
 BasedOnStyle: LLVM
 BreakAfterAttributes: Always
 IncludeBlocks: Regroup
+AlignAfterOpenBracket: BlockIndent
 IndentWidth: 4
 ColumnLimit: 100
 PointerAlignment: Left

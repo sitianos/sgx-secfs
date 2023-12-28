@@ -21,15 +21,16 @@ Crypto_Library_Name := sgx_tcrypto
 
 Enclave_Include_Paths := $(addprefix -I, . ../include $(SGX_SDK)/include $(SGX_SDK)/include/libcxx $(SGX_SDK)/include/tlibc) $(shell pkg-config fuse3 --cflags)
 
-CFLAGS :=  $(SGX_COMMON_CFLAGS) -nostdinc -fvisibility=hidden -fpie -fstack-protector -fno-builtin-printf $(Enclave_Include_Paths)
-CXXFLAGS := $(SGX_COMMON_CXXFLAGS) $(CFLAGS) -nostdinc++
+SGX_ENCLAVE_CFLAGS = -nostdinc -fvisibility=hidden -fpie -fstack-protector -fno-builtin-printf $(Enclave_Include_Paths)
+CFLAGS :=  $(SGX_COMMON_CFLAGS) $(SGX_ENCLAVE_CFLAGS)
+CXXFLAGS := $(SGX_COMMON_CXXFLAGS) $(SGX_ENCLAVE_CFLAGS) -nostdinc++
 
 Enclave_Security_Link_Flags := -Wl,-z,relro,-z,now,-z,noexecstack
 
 Enclave_Link_Flags := $(Enclave_Security_Link_Flags) \
     -Wl,--no-undefined -nostdlib -nodefaultlibs -nostartfiles -L$(SGX_LIBRARY_PATH) \
 	-Wl,--whole-archive -l$(Trts_Library_Name) -Wl,--no-whole-archive \
-	-Wl,--start-group -lsgx_tstdc -lsgx_tcxx -lsgx_mbedcrypto -lsgx_tcrypto -l$(Service_Library_Name) -Wl,--end-group \
+	-Wl,--start-group -lsgx_tstdc -lsgx_tcxx -lsgx_mbedcrypto -l$(Crypto_Library_Name) -l$(Service_Library_Name) -Wl,--end-group \
 	-Wl,-Bstatic -Wl,-Bsymbolic -Wl,--no-undefined \
 	-Wl,-pie,-eenclave_entry -Wl,--export-dynamic  \
 	-Wl,--defsym,__ImageBase=0 \

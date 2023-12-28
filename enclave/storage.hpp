@@ -2,6 +2,10 @@
 #include "filenode.hpp"
 #include "metadata.hpp"
 
+void hexdump(const void* bytes, size_t len, char* out);
+
+int print_hex(const void* bytes, size_t len);
+
 int printf(const char* fmt, ...);
 
 int print_sgx_err(sgx_status_t sgxstat);

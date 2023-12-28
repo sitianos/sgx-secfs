@@ -2,13 +2,14 @@
 
 #include <stdint.h>
 #include <sys/types.h>
-#define MAX_PATH_LEN 256
-#define CHUNKSIZE 4096
 
 #ifdef __cplusplus
 #include <cstddef>
 extern "C" {
 #endif
+
+#define MAX_PATH_LEN 256
+#define CHUNKSIZE 4096
 
 typedef uint64_t fuse_ino_t;
 typedef uint32_t uid_t;

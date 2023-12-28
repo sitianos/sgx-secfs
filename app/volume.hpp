@@ -4,16 +4,21 @@
 #include "backend/storage.hpp"
 #include "sgx_urts.h"
 
-#include <nlohmann/json.hpp>
-#include <mbedtls/ecp.h>
-#include <string>
 #include <filesystem>
+#include <mbedtls/ecp.h>
+#include <nlohmann/json.hpp>
+#include <string>
+#include <uuid/uuid.h>
 
 namespace secfs {
 class Volume {
   private:
     Volume();
     StorageAPI* __load_api_instance(json config);
+    bool __init_api_instance();
+    bool __init_enclave();
+    bool __load_pubkey();
+    bool __load_key();
     StorageAPI* api;
     bool is_loaded;
     json config;
@@ -33,14 +38,11 @@ class Volume {
 
     ~Volume();
     StorageAPI& get_api_instance();
-    int init_api_instance();
-    int init_enclave();
-    bool load_pubkey();
-    bool load_key();
     inline bool loaded() {
         return is_loaded;
     }
     bool create_volume();
+    bool mount_volume();
     bool load_config(const char* config_file);
     bool dump_config(const char* config_file);
     static Volume& get_instance();
@@ -49,4 +51,3 @@ class Volume {
 extern Volume& global_vol;
 
 } // namespace secfs
-

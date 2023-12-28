@@ -44,8 +44,10 @@ Usertable::Userinfo::Userinfo() {
 
 Usertable::Userinfo::Userinfo(const userinfo_t& userinfo) : Userinfo() {
     is_owner = userinfo.is_owner;
-    if (mbedtls_ecp_point_read_binary(&pubkey.MBEDTLS_PRIVATE(grp), &pubkey.MBEDTLS_PRIVATE(Q),
-                                      userinfo.pubkey, userinfo.keysize) != 0) {
+    if (mbedtls_ecp_point_read_binary(
+            &pubkey.MBEDTLS_PRIVATE(grp), &pubkey.MBEDTLS_PRIVATE(Q), userinfo.pubkey,
+            userinfo.keysize
+        ) != 0) {
         mbedtls_ecp_keypair_init(&pubkey);
         return;
     }
@@ -71,9 +73,10 @@ Usertable::Userinfo::~Userinfo() {
 void Usertable::Userinfo::dump(userinfo_t* userinfo) const {
     userinfo->is_owner = is_owner ? 1 : 0;
     std::memset(userinfo->pubkey, 0, sizeof(pubkey_t));
-    if (mbedtls_ecp_point_write_binary(&pubkey.MBEDTLS_PRIVATE(grp), &pubkey.MBEDTLS_PRIVATE(Q),
-                                       MBEDTLS_ECP_PF_UNCOMPRESSED, &userinfo->keysize,
-                                       userinfo->pubkey, sizeof(pubkey_t)) != 0) {
+    if (mbedtls_ecp_point_write_binary(
+            &pubkey.MBEDTLS_PRIVATE(grp), &pubkey.MBEDTLS_PRIVATE(Q), MBEDTLS_ECP_PF_UNCOMPRESSED,
+            &userinfo->keysize, userinfo->pubkey, sizeof(pubkey_t)
+        ) != 0) {
         userinfo->keysize = 0;
     }
 }

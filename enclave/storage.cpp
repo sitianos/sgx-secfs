@@ -2,14 +2,27 @@
 
 #include <mbusafecrt.h>
 
-static bool decrypt_buffer(const UUID& uuid, void* obuf, const void* ibuf,
-                           size_t isize) {
+static bool decrypt_buffer(const UUID& uuid, void* obuf, const void* ibuf, size_t isize) {
     memcpy_verw_s(obuf, isize, ibuf, isize);
     return true;
 }
 
+void hexdump(const void* bytes, size_t len, char* out) {
+    for (int i = 0; i < len; i++)
+        snprintf(out + i * 2, 3, "%02x", *((char*)bytes + i));
+}
+
+int print_hex(const void* bytes, size_t len) {
+    char buf[len * 2 + 2];
+    hexdump(bytes, len, buf);
+    buf[len * 2] = '\n';
+    buf[len * 2 + 1] = '\0';
+    ocall_print_string(buf);
+    return 0;
+}
+
 int printf(const char* fmt, ...) {
-    const size_t bufsize = 256;
+    const size_t bufsize = 1024;
     char buf[bufsize] = {'\0'};
     va_list ap;
     va_start(ap, fmt);
@@ -104,7 +117,7 @@ ssize_t save_chunk(Filenode::Chunk& chunk) {
 
     try {
         obuf = new char[CHUNKSIZE];
-    } catch(std::exception &e) {
+    } catch (std::exception& e) {
         printf("%s\n", e.what());
         return -1;
     }
@@ -121,7 +134,7 @@ ssize_t save_chunk(Filenode::Chunk& chunk) {
         return -1;
     }
     chunk.modified = false;
-    
+
     delete obuf;
     return CHUNKSIZE;
 }

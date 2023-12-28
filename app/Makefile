@@ -21,7 +21,7 @@ else
 endif
 
 INCLUDES := $(addprefix -I, . ../include) $(shell pkg-config fuse3 --cflags)
-LIBS := $(shell pkg-config fuse3 --libs) -lmbedtls -lmbedcrypto
+LIBS := $(shell pkg-config fuse3 --libs) -lmbedtls -lmbedcrypto -luuid
 
 CFLAGS := $(SGX_COMMON_CFLAGS) $(SGX_APP_CFLAGS) $(INCLUDES)
 CXXFLAGS := $(SGX_COMMON_CXXFLAGS) $(SGX_APP_CFLAGS) $(INCLUDES)

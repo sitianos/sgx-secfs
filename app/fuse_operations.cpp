@@ -17,7 +17,7 @@ static void copy_statbuf(struct stat& st, const struct stat_buffer_t& statbuf) {
     st.st_mode |= 00777;
 }
 
-void secfs_init(void *userdata, struct fuse_conn_info *conn) {
+void secfs_init(void* userdata, struct fuse_conn_info* conn) {
     (void)userdata;
     (void)conn;
 }
@@ -90,7 +90,7 @@ void secfs_mkdir(fuse_req_t req, fuse_ino_t parent, const char* name, mode_t mod
     }
 }
 
-void secfs_unlink(fuse_req_t req, fuse_ino_t parent, const char *name) {
+void secfs_unlink(fuse_req_t req, fuse_ino_t parent, const char* name) {
     sgx_status_t sgxstat;
     int err;
 
@@ -124,7 +124,7 @@ void secfs_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info* fi) {
     if (sgxstat != SGX_SUCCESS) {
         std::cerr << enclave_err_msg(sgxstat) << std::endl;
         fuse_reply_err(req, ENOENT);
-    } else if(err) {
+    } else if (err) {
         fuse_reply_err(req, err);
     } else {
         fuse_reply_open(req, fi);
@@ -153,8 +153,10 @@ void secfs_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct f
     free(buf);
 }
 
-void secfs_write(fuse_req_t req, fuse_ino_t ino, const char* buf, size_t size, off_t off,
-                 struct fuse_file_info* fi) {
+void secfs_write(
+    fuse_req_t req, fuse_ino_t ino, const char* buf, size_t size, off_t off,
+    struct fuse_file_info* fi
+) {
     (void)fi;
     sgx_status_t sgxstat;
     int err;
@@ -218,8 +220,9 @@ void secfs_opendir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info* fi) {
     free(dirp);
 }
 
-void secfs_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t offset,
-                   struct fuse_file_info* fi) {
+void secfs_readdir(
+    fuse_req_t req, fuse_ino_t ino, size_t size, off_t offset, struct fuse_file_info* fi
+) {
     fuse_log(FUSE_LOG_DEBUG, "readdir(ino=%ld, size=%ld, offset=%ld)\n", ino, size, offset);
     size_t rem = size;
     size_t entsize;
@@ -238,8 +241,10 @@ void secfs_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t offset,
         }
         p += entsize;
         rem -= entsize;
-        fuse_log(FUSE_LOG_DEBUG, "    add dent %s ino=%4ld type=%03o entisze=%ld remain=%ld\n",
-                 dent.name, dent.ino, dent.type, entsize, rem);
+        fuse_log(
+            FUSE_LOG_DEBUG, "    add dent %s ino=%4ld type=%03o entisze=%ld remain=%ld\n",
+            dent.name, dent.ino, dent.type, entsize, rem
+        );
     }
 
     fuse_reply_buf(req, buf, size - rem);
@@ -265,8 +270,9 @@ void secfs_access(fuse_req_t req, fuse_ino_t ino, int mask) {
     }
 }
 
-void secfs_create(fuse_req_t req, fuse_ino_t parent, const char* name, mode_t mode,
-                  struct fuse_file_info* fi) {
+void secfs_create(
+    fuse_req_t req, fuse_ino_t parent, const char* name, mode_t mode, struct fuse_file_info* fi
+) {
     struct fuse_entry_param ep;
     sgx_status_t sgxstat;
     int err;

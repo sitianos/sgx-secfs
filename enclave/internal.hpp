@@ -10,6 +10,8 @@
 extern "C" {
 #endif
 
+#define VOLKEYSIZE 256
+
 typedef unsigned char hash_t[32];
 typedef unsigned char pubkey_t[256];
 

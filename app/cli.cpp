@@ -9,37 +9,35 @@
 using secfs::global_vol;
 
 static int cmd_create_volume(int argc, char** argv) {
-    struct option options[] = {{"config", required_argument, NULL, 'c'}, {0, 0, NULL, 0}};
+    struct option options[] = {
+        {"config", required_argument, NULL, 'c'},
+        {"new-config", required_argument, NULL, 'n'},
+        {0, 0, NULL, 0}
+    };
     int opt;
     int longindex;
     const char* volume_config = NULL;
-    while ((opt = getopt_long(argc, argv, "", options, &longindex)) != -1) {
+    const char* new_volume_config = NULL;
+    while ((opt = getopt_long(argc, argv, "c:n:", options, &longindex)) != -1) {
         switch (opt) {
         case 'c':
             volume_config = optarg;
+            break;
+        case 'n':
+            new_volume_config = optarg;
+            break;
         }
     }
     if (!volume_config) {
         std::cerr << "configuration file is not given" << std::endl;
         return 1;
     }
+    if (!new_volume_config) {
+        new_volume_config = volume_config;
+    }
 
-    global_vol.load_config(volume_config);
-
-    if (!global_vol.loaded()) {
+    if (!global_vol.load_config(volume_config)) {
         std::cerr << "volume is not loaded" << std::endl;
-        return 1;
-    }
-    if (!global_vol.init_enclave()) {
-        std::cerr << "failed to initialize enclave" << std::endl;
-        return 1;
-    }
-    if (global_vol.init_api_instance() != 1) {
-        std::cerr << "failed to initialize API instance" << std::endl;
-        return 1;
-    }
-    if (global_vol.load_pubkey() != 1) {
-        std::cerr << "failed to load public key" << std::endl;
         return 1;
     }
 
@@ -47,7 +45,7 @@ static int cmd_create_volume(int argc, char** argv) {
         std::cerr << "failed to create volume" << std::endl;
         return 1;
     }
-    if (!global_vol.dump_config(volume_config)) {
+    if (!global_vol.dump_config(new_volume_config)) {
         std::cerr << "failed to dump to volume configuration file" << std::endl;
         return 1;
     }

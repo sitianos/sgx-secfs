@@ -1,7 +1,7 @@
 #define FUSE_USE_VERSION 34
-#include "fuse_operations.hpp"
-#include "enclave_u.h"
 #include "enclave.hpp"
+#include "enclave_u.h"
+#include "fuse_operations.hpp"
 #include "volume.hpp"
 
 #include <cstddef>
@@ -49,7 +49,6 @@ int main(int argc, char** argv, char** envp) {
     struct fuse_loop_config config;
     struct secfs_options options = {};
     using secfs::global_vol;
-    uuid_t temp_uuid = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1};
 
     int ret = -1;
 
@@ -87,33 +86,12 @@ int main(int argc, char** argv, char** envp) {
         goto err_out1;
     }
 
-    global_vol.load_config(options.volume_config);
-
-    if (!global_vol.loaded()) {
+    if (!global_vol.load_config(options.volume_config)) {
         std::cerr << "volume is not loaded" << std::endl;
         goto err_out1;
     }
-    if (!global_vol.init_enclave()) {
-        std::cerr << "failed to initialize enclave" << std::endl;
-        goto err_out1;
-    }
-    if (global_vol.init_api_instance() != 1) {
-        std::cerr << "failed to initialize API instance" << std::endl;
-        goto err_out1;
-    }
-    // if (global_vol.load_key() != 1) {
-    //     std::cerr << "failed to load private key" << std::endl;
-    //     goto err_out1;
-    // }
 
-    sgx_status_t sgxstat;
-    int err;
-    sgxstat = ecall_mount_volume(global_vol.eid, &err, 1, &global_vol.key, temp_uuid);
-    if(sgxstat != SGX_SUCCESS){
-        std::cerr << enclave_err_msg(sgxstat) << std::endl;
-        goto err_out1;
-    }
-    if(err) {
+    if (!global_vol.mount_volume()) {
         std::cerr << "failed to mount volume" << std::endl;
         goto err_out1;
     }

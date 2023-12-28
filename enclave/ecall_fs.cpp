@@ -7,16 +7,11 @@
 #include "volume.hpp"
 
 #include <algorithm>
-#include <exception>
 #include <cerrno>
 #include <cstdarg>
 #include <cstdio>
+#include <exception>
 #include <mbusafecrt.h>
-
-static void hexdump(const void* bytes, size_t len, char* out) {
-    for (int i = 0; i < len; i++)
-        snprintf(out + i * 2, 3, "%02x", *((char*)bytes + i));
-}
 
 int ecall_fs_lookup(ino_t parent, const char* name, ino_t* ino, stat_buffer_t* statbuf) {
     *ino = 0;
@@ -77,8 +72,9 @@ int ecall_fs_getattr(ino_t ino, stat_buffer_t* statbuf) {
     return 0;
 }
 
-int ecall_fs_mkdir(ino_t parent, const char* name, mode_t mode, fuse_ino_t* ino,
-                   struct stat_buffer_t* statbuf) {
+int ecall_fs_mkdir(
+    ino_t parent, const char* name, mode_t mode, fuse_ino_t* ino, struct stat_buffer_t* statbuf
+) {
     *ino = 0;
     decltype(inode_map)::iterator iter = inode_map.find(parent);
     if (iter == inode_map.end()) {
@@ -135,9 +131,9 @@ int ecall_fs_unlink(fuse_ino_t parent, const char* name) {
                 return EISDIR;
             }
             Filenode* file_p = load_metadata<Filenode>(dent->uuid);
-            if(file_p == nullptr) {
+            if (file_p == nullptr) {
                 printf("failed to load filenode\n");
-                return EACCES;          
+                return EACCES;
             }
             if (!remove_metadata(dent->uuid)) {
                 printf("failed to remove metadata\n");
@@ -214,11 +210,11 @@ int ecall_fs_open(fuse_ino_t ino, open_flag_t flags) {
         return EACCES;
     }
     // here is permission check
-    if(flags & OF_TRUNC) {
+    if (flags & OF_TRUNC) {
         for (Filenode::Chunk& chunk : fn->chunks) {
             if (!remove_chunk(chunk.uuid)) {
                 printf("failed to remove chunk\n");
-            }     
+            }
         }
         fn->chunks.resize(0);
         fn->size = 0;
@@ -241,8 +237,10 @@ int ecall_fs_read(fuse_ino_t ino, char* buf, off_t offset, size_t* size) {
     size_t chunk_en = (offset + *size + CHUNKSIZE - 1) / CHUNKSIZE;
     if (chunk_en > fn->chunks.size()) {
         printf("filesize is larger than local chunks\n");
-        printf("chunk_en=%ld, fn->chunks.size=%ld fn->size=%ld\n", chunk_en, fn->chunks.size(),
-               fn->size);
+        printf(
+            "chunk_en=%ld, fn->chunks.size=%ld fn->size=%ld\n", chunk_en, fn->chunks.size(),
+            fn->size
+        );
         return EINVAL;
     }
     chunk_en = std::min(chunk_en, fn->chunks.size());
@@ -319,7 +317,7 @@ int ecall_fs_write(fuse_ino_t ino, const char* buf, off_t offset, size_t* size) 
         memcpy_verw_s(chunk.mem + off_st, CHUNKSIZE - off_st, buf + wsize, off_en - off_st);
         chunk.modified = true;
         wsize += off_en - off_st;
-        if( off_en == CHUNKSIZE) {
+        if (off_en == CHUNKSIZE) {
             if (save_chunk(chunk) < 0) {
                 printf("failed to save chunk\n");
                 break;
@@ -400,8 +398,9 @@ int ecall_fs_access(fuse_ino_t ino, int mask) {
     return 0;
 }
 
-int ecall_fs_create(fuse_ino_t parent, const char* name, mode_t mode, fuse_ino_t* ino,
-                    struct stat_buffer_t* statbuf) {
+int ecall_fs_create(
+    fuse_ino_t parent, const char* name, mode_t mode, fuse_ino_t* ino, struct stat_buffer_t* statbuf
+) {
     *ino = 0;
     auto iter = inode_map.find(parent);
     if (iter == inode_map.end()) {
