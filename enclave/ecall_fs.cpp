@@ -102,7 +102,7 @@ int ecall_fs_mkdir(
     new_dirent.type = T_DT_DIR;
     new_dirent.uuid = new_uuid;
     parent_dn->dirent.push_back(new_dirent);
-    save_metadata(parent_dn.get());
+    save_metadata(*parent_dn);
     // inode_map.erase(iter);
 
     inode_map[superinfo->max_ino] = new_dn;
@@ -110,8 +110,8 @@ int ecall_fs_mkdir(
     superinfo->max_ino++;
     new_dn->dump_stat(statbuf);
 
-    save_metadata(superinfo.get());
-    save_metadata(new_dn.get());
+    save_metadata(*superinfo);
+    save_metadata(*new_dn);
     return 0;
 }
 
@@ -148,7 +148,7 @@ int ecall_fs_unlink(fuse_ino_t parent, const char* name) {
             delete file_p;
 
             parent_dn->dirent.erase(dent);
-            if (!save_metadata(parent_dn.get())) {
+            if (!save_metadata(*parent_dn)) {
                 printf("failed to save metadata\n");
                 return EACCES;
             }
@@ -189,7 +189,7 @@ int ecall_fs_rmdir(fuse_ino_t parent, const char* name) {
             delete dir_p;
 
             parent_dn->dirent.erase(dent);
-            if (!save_metadata(parent_dn.get())) {
+            if (!save_metadata(*parent_dn)) {
                 printf("failed to save metadata\n");
                 return EACCES;
             }
@@ -339,7 +339,7 @@ int ecall_fs_flush(fuse_ino_t ino) {
     if (!(fn = std::dynamic_pointer_cast<Filenode>(iter->second))) {
         return EINVAL;
     }
-    if (!save_metadata(fn.get()))
+    if (!save_metadata(*fn))
         return EIO;
 
     for (Filenode::Chunk& chunk : fn->chunks) {
@@ -428,15 +428,15 @@ int ecall_fs_create(
     new_dirent.type = T_DT_REG;
     new_dirent.uuid = new_uuid;
     parent_dn->dirent.push_back(new_dirent);
-    save_metadata(parent_dn.get());
+    save_metadata(*parent_dn);
 
     inode_map[superinfo->max_ino] = new_fn;
     *ino = superinfo->max_ino;
     superinfo->max_ino++;
     new_fn->dump_stat(statbuf);
 
-    save_metadata(superinfo.get());
-    save_metadata(new_fn.get());
+    save_metadata(*superinfo);
+    save_metadata(*new_fn);
 
     return 0;
 }

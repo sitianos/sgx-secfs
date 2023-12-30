@@ -10,12 +10,24 @@ Dirnode::Dirnode(const dirnode_buffer_t* buf)
 Dirnode::Dirnode(const void* buf) : Dirnode(static_cast<const dirnode_buffer_t*>(buf)) {
 }
 
-size_t Dirnode::dump(void* buf, size_t size) const {
+bool Dirnode::load(const void* buf, size_t bsize) {
+    const dirnode_buffer_t* obuf = static_cast<const dirnode_buffer_t*>(buf);
+    size_t rqsize = sizeof(dirnode_buffer_t) + sizeof(dirent_t) * obuf->entnum;
+    if (bsize != rqsize) {
+        return false;
+    }
+    name = obuf->name;
+    dirent.assign(obuf->entry, obuf->entry + obuf->entnum);
+    ino = obuf->ino;
+    return true;
+}
+
+size_t Dirnode::dump(void* buf, size_t bsize) const {
     size_t rqsize = sizeof(dirnode_buffer_t) + sizeof(dirent_t) * dirent.size();
     if (buf == nullptr) {
         return rqsize;
     }
-    if (size < rqsize) {
+    if (bsize < rqsize) {
         return 0;
     }
     dirnode_buffer_t* obuf = static_cast<dirnode_buffer_t*>(buf);

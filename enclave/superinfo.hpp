@@ -10,7 +10,8 @@ class Superinfo : public Metadata {
     Superinfo(const void* buf);
     ~Superinfo() override = default;
 
-    size_t dump(void* buf, size_t size) const override;
+    bool load(const void* buf, size_t bsize) override;
+    size_t dump(void* buf, size_t bsize) const override;
 
     UUID root_dirnode;
     UUID user_table;

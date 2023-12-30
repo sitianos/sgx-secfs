@@ -10,10 +10,12 @@ int printf(const char* fmt, ...);
 
 int print_sgx_err(sgx_status_t sgxstat);
 
-bool save_metadata(const Metadata* metadata);
+bool load_metadata(Metadata& metadata);
+
+bool save_metadata(const Metadata& metadata);
 
 template <typename T>
-T* load_metadata(const UUID& uuid) {
+std::enable_if_t<std::is_base_of<Metadata, T>::value, T*> load_metadata(const UUID& uuid) {
     void* buf;
     ssize_t size;
     char filename[40];
@@ -35,6 +37,7 @@ T* load_metadata(const UUID& uuid) {
     // decryption here
 
     T* metadata = Metadata::create<T>(uuid, buf, size);
+
     ocall_free(buf);
     return metadata;
 }

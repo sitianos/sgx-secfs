@@ -11,6 +11,7 @@ class UUID {
 
     UUID& operator=(const UUID& uuid);
     bool operator==(const UUID& uuid);
+    void load(const unsigned char* in);
     void dump(unsigned char* out) const;
     void unparse(char* out) const;
     void unparse(std::string& out) const;

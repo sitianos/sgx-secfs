@@ -1,9 +1,126 @@
 #include "storage.hpp"
 
-#include <mbusafecrt.h>
+#include "volume.hpp"
 
-static bool decrypt_buffer(const UUID& uuid, void* obuf, const void* ibuf, size_t isize) {
-    memcpy_verw_s(obuf, isize, ibuf, isize);
+#include <mbedtls/cipher.h>
+#include <mbusafecrt.h>
+#include <memory>
+
+static bool encrypt_buffer(
+    const unsigned char* src, size_t ssize, const unsigned char* aad, size_t ad_len,
+    unsigned char* dst, size_t dsize, unsigned char* tag, size_t tag_len
+) {
+    const mbedtls_cipher_info_t* cipher_info;
+    mbedtls_cipher_context_t ctx_enc;
+
+    std::vector<unsigned char> iv;
+    size_t out_len, total_len;
+
+    mbedtls_cipher_init(&ctx_enc);
+    std::unique_ptr<mbedtls_cipher_context_t, decltype(&mbedtls_cipher_free)> ctx_enc_ptr(
+        &ctx_enc, mbedtls_cipher_free
+    );
+
+    cipher_info = mbedtls_cipher_info_from_type(MBEDTLS_CIPHER_AES_256_GCM);
+    if (cipher_info == nullptr) {
+        return false;
+    }
+
+    if (mbedtls_cipher_setup(&ctx_enc, cipher_info) != 0) {
+        return false;
+    }
+
+    iv.assign(mbedtls_cipher_get_iv_size(&ctx_enc), 0);
+
+    if (mbedtls_cipher_setkey(&ctx_enc, volkey, sizeof(volkey), MBEDTLS_ENCRYPT) != 0) {
+        return false;
+    }
+
+    if (mbedtls_cipher_set_iv(&ctx_enc, iv.data(), iv.size()) != 0) {
+        return false;
+    }
+
+    if (mbedtls_cipher_reset(&ctx_enc) != 0) {
+        return false;
+    }
+
+    if (mbedtls_cipher_update_ad(&ctx_enc, aad, ad_len) != 0) {
+        return false;
+    }
+
+    if (mbedtls_cipher_update(&ctx_enc, src, ssize, dst, &out_len) != 0) {
+        return false;
+    }
+    total_len = out_len;
+
+    if (0 != mbedtls_cipher_finish(&ctx_enc, dst + out_len, &out_len) != 0) {
+        return false;
+    }
+    total_len += out_len;
+
+    if (mbedtls_cipher_write_tag(&ctx_enc, tag, tag_len) != 0) {
+        return false;
+    }
+
+    return true;
+}
+
+static bool decrypt_buffer(
+    const unsigned char* src, size_t ssize, const unsigned char* aad, size_t ad_len,
+    unsigned char* dst, size_t dsize, const unsigned char* tag, size_t tag_len
+) {
+    const mbedtls_cipher_info_t* cipher_info;
+    mbedtls_cipher_context_t ctx_dec;
+
+    std::vector<unsigned char> iv;
+    size_t out_len, total_len;
+
+    mbedtls_cipher_init(&ctx_dec);
+    std::unique_ptr<mbedtls_cipher_context_t, decltype(&mbedtls_cipher_free)> ctx_dec_ptr(
+        &ctx_dec, mbedtls_cipher_free
+    );
+
+    cipher_info = mbedtls_cipher_info_from_type(MBEDTLS_CIPHER_AES_256_GCM);
+    if (cipher_info == nullptr) {
+        return false;
+    }
+
+    if (mbedtls_cipher_setup(&ctx_dec, cipher_info) != 0) {
+        return false;
+    }
+
+    iv.assign(mbedtls_cipher_get_iv_size(&ctx_dec), 0);
+
+    if (mbedtls_cipher_setkey(&ctx_dec, volkey, sizeof(volkey), MBEDTLS_DECRYPT) != 0) {
+        return false;
+    }
+
+    if (mbedtls_cipher_set_iv(&ctx_dec, iv.data(), iv.size()) != 0) {
+        return false;
+    }
+
+    if (mbedtls_cipher_reset(&ctx_dec) != 0) {
+        return false;
+    }
+
+    if (mbedtls_cipher_update_ad(&ctx_dec, aad, ad_len) != 0) {
+        return false;
+    }
+
+    if (mbedtls_cipher_update(&ctx_dec, src, ssize, dst, &out_len) != 0) {
+        return false;
+    }
+    total_len = out_len;
+
+    if (mbedtls_cipher_finish(&ctx_dec, dst + out_len, &out_len) != 0) {
+        return false;
+    }
+    total_len += out_len;
+
+    if (mbedtls_cipher_check_tag(&ctx_dec, tag, tag_len) != 0) {
+        return false;
+    }
+
     return true;
 }
 
@@ -36,22 +153,51 @@ int print_sgx_err(sgx_status_t sgxstat) {
     ocall_print_sgx_error(sgxstat);
 }
 
-bool save_metadata(const Metadata* metadata) {
+bool load_metadata(Metadata& metadata) {
+    void* buf;
+    ssize_t size;
+    char filename[40];
+    sgx_status_t sgxstat;
+
+    metadata.uuid.unparse(filename);
+
+    sgxstat = ocall_load_file(filename, &buf, &size);
+    if (sgxstat != SGX_SUCCESS) {
+        printf("SGX Error in %s(): (0x%4x) ", __func__);
+        print_sgx_err(sgxstat);
+        return false;
+    }
+    if (size < 0) {
+        printf("failed to fetch file\n");
+        return false;
+    }
+
+    // decryption here
+
+    if (!metadata.load(buf, size)) {
+        return false;
+    }
+
+    ocall_free(buf);
+    return true;
+}
+
+bool save_metadata(const Metadata& metadata) {
     void* buf;
     size_t size;
     char filename[40];
     sgx_status_t sgxstat;
 
-    size = metadata->dump(nullptr, 0);
+    size = metadata.dump(nullptr, 0);
     buf = malloc(size);
-    if (metadata->dump(buf, size) == 0) {
+    if (metadata.dump(buf, size) == 0) {
         free(buf);
         return false;
     }
 
     // encryption here
 
-    metadata->uuid.unparse(filename);
+    metadata.uuid.unparse(filename);
     sgxstat = ocall_save_file(filename, buf, size);
     if (sgxstat != SGX_SUCCESS) {
         free(buf);

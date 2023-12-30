@@ -29,7 +29,8 @@ class Filenode : public Inode {
     Filenode(const void* buf);
     ~Filenode() override = default;
 
-    size_t dump(void* buf, size_t size) const override;
+    bool load(const void* buf, size_t bsize) override;
+    size_t dump(void* buf, size_t bsize) const override;
     void dump_stat(stat_buffer_t* buf) const override;
     size_t nlink() const override;
 

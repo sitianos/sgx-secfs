@@ -5,7 +5,6 @@
 Usertable::Usertable(const usertable_buffer_t* buf) {
     for (size_t i = 0; i < buf->entnum; i++) {
         const userinfo_t& user = buf->entry[i];
-        size_t uid = user.uid;
         usermap[user.uid] = Userinfo(user);
     }
 }
@@ -13,12 +12,28 @@ Usertable::Usertable(const usertable_buffer_t* buf) {
 Usertable::Usertable(const void* buf) : Usertable(static_cast<const usertable_buffer_t*>(buf)) {
 }
 
-size_t Usertable::dump(void* buf, size_t size) const {
+bool Usertable::load(const void* buf, size_t bsize) {
+    const usertable_buffer_t* obuf = static_cast<const usertable_buffer_t*>(buf);
+    size_t rqsize = sizeof(usertable_buffer_t) + sizeof(userinfo_t) * obuf->entnum;
+    if (bsize != rqsize) {
+        return false;
+    }
+    for (size_t i = 0; i < obuf->entnum; i++) {
+        const userinfo_t& user = obuf->entry[i];
+        if (usermap.count(user.uid) != 0) {
+            return false;
+        }
+        usermap[user.uid] = Userinfo(user);
+    }
+    return true;
+}
+
+size_t Usertable::dump(void* buf, size_t bsize) const {
     size_t rqsize = sizeof(usertable_buffer_t) + sizeof(userinfo_t) * usermap.size();
     if (buf == nullptr) {
         return rqsize;
     }
-    if (size < rqsize) {
+    if (bsize < rqsize) {
         return 0;
     }
 

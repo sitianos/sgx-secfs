@@ -12,12 +12,26 @@ Superinfo::Superinfo(const superinfo_buffer_t* buf)
 Superinfo::Superinfo(const void* buf) : Superinfo(static_cast<const superinfo_buffer_t*>(buf)) {
 }
 
-size_t Superinfo::dump(void* buf, size_t size) const {
+bool Superinfo::load(const void* buf, size_t bsize) {
+    size_t rqsize = sizeof(superinfo_buffer_t);
+    if (bsize != rqsize) {
+        return false;
+    }
+    const superinfo_buffer_t* obuf = static_cast<const superinfo_buffer_t*>(buf);
+    root_dirnode.load(obuf->root_dirnode);
+    user_table.load(obuf->user_table);
+    std::memcpy(hash_root_dirnode, obuf->hash_root_dirnode, sizeof(hash_t));
+    std::memcpy(hash_user_table, obuf->hash_user_table, sizeof(hash_t));
+    max_ino = obuf->max_ino;
+    return true;
+}
+
+size_t Superinfo::dump(void* buf, size_t bsize) const {
     size_t rqsize = sizeof(superinfo_buffer_t);
     if (buf == nullptr) {
         return rqsize;
     }
-    if (size < rqsize) {
+    if (bsize < rqsize) {
         return 0;
     }
 

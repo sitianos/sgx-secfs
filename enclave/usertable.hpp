@@ -28,7 +28,8 @@ class Usertable : public Metadata {
     Usertable(const void* buf);
     ~Usertable() override = default;
 
-    size_t dump(void* buf, size_t size) const override;
+    bool load(const void* buf, size_t bsize) override;
+    size_t dump(void* buf, size_t bsize) const override;
 
-    std::unordered_map<size_t, Userinfo> usermap;
+    std::unordered_map<uid_t, Userinfo> usermap;
 };
