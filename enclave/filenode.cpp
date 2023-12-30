@@ -2,24 +2,13 @@
 
 #include <cstring>
 
-Filenode::Filenode(const filenode_buffer_t* buf)
-    : size(buf->size), chunks(buf->entry, buf->entry + buf->entnum) {
-    if ((buf->size + CHUNKSIZE - 1) % CHUNKSIZE != buf->entnum) {
-        throw std::invalid_argument("file size and number of chunks don't match");
-    }
-    ino = buf->ino;
-}
-
-Filenode::Filenode(const void* buf) : Filenode(static_cast<const filenode_buffer_t*>(buf)) {
-}
-
 bool Filenode::load(const void* buf, size_t bsize) {
     const filenode_buffer_t* obuf = static_cast<const filenode_buffer_t*>(buf);
     size_t rqsize = sizeof(filenode_buffer_t) + sizeof(chunk_t) * obuf->entnum;
     if (bsize != rqsize) {
         return false;
     }
-    if ((obuf->size + CHUNKSIZE - 1) % CHUNKSIZE != obuf->entnum) {
+    if ((obuf->size + CHUNKSIZE - 1) / CHUNKSIZE != obuf->entnum) {
         return false;
     }
     size = obuf->size;

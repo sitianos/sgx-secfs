@@ -25,9 +25,9 @@ int ecall_create_volume(
     UUID sp_uuid = UUID::gen_rand();
     UUID ut_uuid = UUID::gen_rand();
     UUID rt_uuid = UUID::gen_rand();
-    std::unique_ptr<Superinfo> sp_info(Metadata::create<Superinfo>(sp_uuid));
-    std::unique_ptr<Usertable> user_tb(Metadata::create<Usertable>(ut_uuid));
-    std::unique_ptr<Dirnode> root_dn(Metadata::create<Dirnode>(rt_uuid));
+    std::unique_ptr<Superinfo> sp_info = std::make_unique<Superinfo>(sp_uuid);
+    std::unique_ptr<Usertable> user_tb = std::make_unique<Usertable>(ut_uuid);
+    std::unique_ptr<Dirnode> root_dn = std::make_unique<Dirnode>(rt_uuid);
 
     // Usertable::Userinfo owner;
     Usertable::Userinfo& owner = user_tb->usermap[1] = Usertable::Userinfo();
@@ -68,16 +68,16 @@ int ecall_create_volume(
         return 1;
     }
 
-    if (!save_metadata(user_tb.get())) {
+    if (!save_metadata(*user_tb)) {
         printf("failed to save usertable\n");
         return 1;
     }
 
-    if (!save_metadata(root_dn.get())) {
+    if (!save_metadata(*root_dn)) {
         printf("failed to save root dirnode\n");
         return 1;
     }
-    if (!save_metadata(sp_info.get())) {
+    if (!save_metadata(*sp_info)) {
         printf("failed to save superinfo\n");
         return 1;
     }
@@ -116,17 +116,16 @@ int ecall_mount_volume(
     print_hex(volkey, sizeof(volkey));
 
     UUID sp_uuid(sp_uuid_in);
-    Superinfo* sp_p = load_metadata<Superinfo>(sp_uuid);
+    superinfo = std::make_shared<Superinfo>(sp_uuid);
 
-    if (sp_p == nullptr) {
+    if (!load_metadata(*superinfo)) {
         printf("failed to load superinfo\n");
         return 1;
     }
-    superinfo = std::shared_ptr<Superinfo>(sp_p);
 
-    Dirnode* root_dir_p = load_metadata<Dirnode>(superinfo->root_dirnode);
+    std::shared_ptr<Dirnode> root_dir_p = std::make_shared<Dirnode>(superinfo->root_dirnode);
 
-    if (root_dir_p == nullptr) {
+    if (!load_metadata(*root_dir_p)) {
         printf("failed to load root dirnode\n");
         return 1;
     }
@@ -134,8 +133,7 @@ int ecall_mount_volume(
         printf("inode number of root directory is not 1\n");
         return 1;
     }
-
-    inode_map[1] = std::shared_ptr<Dirnode>(root_dir_p);
+    inode_map[1] = root_dir_p;
 
     return 0;
 }

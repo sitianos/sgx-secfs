@@ -2,16 +2,6 @@
 
 #include <cstring>
 
-Usertable::Usertable(const usertable_buffer_t* buf) {
-    for (size_t i = 0; i < buf->entnum; i++) {
-        const userinfo_t& user = buf->entry[i];
-        usermap[user.uid] = Userinfo(user);
-    }
-}
-
-Usertable::Usertable(const void* buf) : Usertable(static_cast<const usertable_buffer_t*>(buf)) {
-}
-
 bool Usertable::load(const void* buf, size_t bsize) {
     const usertable_buffer_t* obuf = static_cast<const usertable_buffer_t*>(buf);
     size_t rqsize = sizeof(usertable_buffer_t) + sizeof(userinfo_t) * obuf->entnum;

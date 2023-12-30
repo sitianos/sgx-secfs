@@ -23,9 +23,7 @@ class Usertable : public Metadata {
         static mbedtls_ecp_group_id grp_id;
     };
 
-    Usertable() = default;
-    Usertable(const usertable_buffer_t* buf);
-    Usertable(const void* buf);
+    using Metadata::Metadata;
     ~Usertable() override = default;
 
     bool load(const void* buf, size_t bsize) override;

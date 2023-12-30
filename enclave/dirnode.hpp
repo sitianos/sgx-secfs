@@ -22,9 +22,7 @@ class Dirnode : public Inode {
         UUID uuid;
     };
 
-    Dirnode() = default;
-    Dirnode(const dirnode_buffer_t* buf);
-    Dirnode(const void* buf);
+    using Inode::Inode;
     ~Dirnode() override = default;
 
     bool load(const void* buf, size_t bsize) override;

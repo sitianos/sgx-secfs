@@ -24,9 +24,7 @@ class Filenode : public Inode {
         char* mem;
     };
 
-    Filenode() = default;
-    Filenode(const filenode_buffer_t* buf);
-    Filenode(const void* buf);
+    using Inode::Inode;
     ~Filenode() override = default;
 
     bool load(const void* buf, size_t bsize) override;

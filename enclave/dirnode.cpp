@@ -2,14 +2,6 @@
 
 #include <cstring>
 
-Dirnode::Dirnode(const dirnode_buffer_t* buf)
-    : name(buf->name), dirent(buf->entry, buf->entry + buf->entnum) {
-    ino = buf->ino;
-}
-
-Dirnode::Dirnode(const void* buf) : Dirnode(static_cast<const dirnode_buffer_t*>(buf)) {
-}
-
 bool Dirnode::load(const void* buf, size_t bsize) {
     const dirnode_buffer_t* obuf = static_cast<const dirnode_buffer_t*>(buf);
     size_t rqsize = sizeof(dirnode_buffer_t) + sizeof(dirent_t) * obuf->entnum;

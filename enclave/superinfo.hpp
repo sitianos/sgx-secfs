@@ -5,9 +5,7 @@
 class Superinfo : public Metadata {
   private:
   public:
-    Superinfo() = default;
-    Superinfo(const superinfo_buffer_t* buf);
-    Superinfo(const void* buf);
+    using Metadata::Metadata;
     ~Superinfo() override = default;
 
     bool load(const void* buf, size_t bsize) override;

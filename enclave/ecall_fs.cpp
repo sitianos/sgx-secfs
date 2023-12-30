@@ -38,16 +38,16 @@ int ecall_fs_lookup(ino_t parent, const char* name, ino_t* ino, stat_buffer_t* s
             }
 
             if (dent->type == T_DT_DIR) {
-                Dirnode* dir_p = load_metadata<Dirnode>(dent->uuid);
+                Dirnode* dir_p = new Dirnode(dent->uuid);
                 ino_p = dir_p;
             } else if (dent->type == T_DT_REG) {
-                Filenode* file_p = load_metadata<Filenode>(dent->uuid);
+                Filenode* file_p = new Filenode(dent->uuid);
                 ino_p = file_p;
             } else {
                 printf("only file and directory lookup is supported\n");
                 return ENOENT;
             }
-            if (ino_p == nullptr) {
+            if (!load_metadata(*ino_p)) {
                 printf("failed to load metadata\n");
                 delete ino_p;
                 return ENONET;
@@ -91,7 +91,7 @@ int ecall_fs_mkdir(
         }
     }
     UUID new_uuid = UUID::gen_rand();
-    std::shared_ptr<Dirnode> new_dn(Metadata::create<Dirnode>(new_uuid));
+    std::shared_ptr<Dirnode> new_dn = std::make_shared<Dirnode>(new_uuid);
     new_dn->ino = superinfo->max_ino;
     new_dn->name = name;
     new_dn->dirent.resize(0);
@@ -130,8 +130,8 @@ int ecall_fs_unlink(fuse_ino_t parent, const char* name) {
             if (dent->type == T_DT_DIR) {
                 return EISDIR;
             }
-            Filenode* file_p = load_metadata<Filenode>(dent->uuid);
-            if (file_p == nullptr) {
+            std::shared_ptr<Filenode> file_p = std::make_shared<Filenode>(dent->uuid);
+            if (!load_metadata(*file_p)) {
                 printf("failed to load filenode\n");
                 return EACCES;
             }
@@ -144,9 +144,6 @@ int ecall_fs_unlink(fuse_ino_t parent, const char* name) {
                     printf("failed to remove chunk\n");
                 }
             }
-
-            delete file_p;
-
             parent_dn->dirent.erase(dent);
             if (!save_metadata(*parent_dn)) {
                 printf("failed to save metadata\n");
@@ -174,8 +171,8 @@ int ecall_fs_rmdir(fuse_ino_t parent, const char* name) {
             if (dent->type != T_DT_DIR) {
                 return ENOTDIR;
             }
-            Dirnode* dir_p = load_metadata<Dirnode>(dent->uuid);
-            if (dir_p == nullptr) {
+            std::shared_ptr<Dirnode> dir_p = std::make_shared<Dirnode>(dent->uuid);
+            if (!load_metadata(*dir_p)) {
                 printf("failed to load dirnode\n");
                 return EACCES;
             }
@@ -186,8 +183,6 @@ int ecall_fs_rmdir(fuse_ino_t parent, const char* name) {
                 printf("failed to remove metadata\n");
                 return EACCES;
             }
-            delete dir_p;
-
             parent_dn->dirent.erase(dent);
             if (!save_metadata(*parent_dn)) {
                 printf("failed to save metadata\n");
@@ -418,7 +413,7 @@ int ecall_fs_create(
         }
     }
     UUID new_uuid = UUID::gen_rand();
-    std::shared_ptr<Filenode> new_fn(Metadata::create<Filenode>(new_uuid));
+    std::shared_ptr<Filenode> new_fn = std::make_shared<Filenode>(new_uuid);
     new_fn->ino = superinfo->max_ino;
     new_fn->size = 0;
 
