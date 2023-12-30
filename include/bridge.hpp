@@ -1,11 +1,11 @@
 #pragma once
 
-#include <stdint.h>
-#include <sys/types.h>
-
 #ifdef __cplusplus
 #include <cstddef>
+#include <cstdint>
 extern "C" {
+#else
+#include <stdint.h>
 #endif
 
 #define MAX_PATH_LEN 256
@@ -17,7 +17,7 @@ typedef uint64_t ino_t;
 typedef uint32_t mode_t;
 typedef uint64_t nlink_t;
 typedef int64_t off_t;
-typedef unsigned char uuid_t[16];
+typedef uint8_t uuid_t[16];
 
 enum open_flag_t {
     OF_RDONLY = 00000000,

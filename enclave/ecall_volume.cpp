@@ -19,8 +19,7 @@ size_t ecall_calc_volkey_size() {
 }
 
 int ecall_create_volume(
-    mbedtls_ecp_keypair* pubkey, uuid_t sp_uuid_out, unsigned char* sealed_volkey,
-    size_t volkey_size
+    mbedtls_ecp_keypair* pubkey, uuid_t sp_uuid_out, uint8_t* sealed_volkey, size_t volkey_size
 ) {
     UUID sp_uuid = UUID::gen_rand();
     UUID ut_uuid = UUID::gen_rand();
@@ -57,7 +56,7 @@ int ecall_create_volume(
     }
 
     sgxstat = sgx_seal_data(
-        strlen(volkey_aad), (unsigned char*)volkey_aad, sizeof(volkey), volkey, volkey_size,
+        strlen(volkey_aad), (uint8_t*)volkey_aad, sizeof(volkey), volkey, volkey_size,
         (sgx_sealed_data_t*)sealed_volkey
     );
 
@@ -86,8 +85,8 @@ int ecall_create_volume(
 }
 
 int ecall_mount_volume(
-    size_t uid, const mbedtls_ecp_keypair* key, uuid_t sp_uuid_in,
-    const unsigned char* sealed_volkey, size_t volkey_size
+    size_t uid, const mbedtls_ecp_keypair* key, uuid_t sp_uuid_in, const uint8_t* sealed_volkey,
+    size_t volkey_size
 ) {
     sgx_status_t sgxstat;
     uint32_t mac_text_len = sgx_get_add_mac_txt_len((const sgx_sealed_data_t*)sealed_volkey);
@@ -101,7 +100,7 @@ int ecall_mount_volume(
         return 1;
     }
 
-    unsigned char dec_volkey_aad[mac_text_len];
+    uint8_t dec_volkey_aad[mac_text_len];
 
     sgxstat = sgx_unseal_data(
         (const sgx_sealed_data_t*)sealed_volkey, dec_volkey_aad, &mac_text_len, volkey,

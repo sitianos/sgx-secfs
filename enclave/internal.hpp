@@ -12,8 +12,8 @@ extern "C" {
 
 #define VOLKEYSIZE 256
 
-typedef unsigned char hash_t[32];
-typedef unsigned char pubkey_t[256];
+typedef uint8_t hash_t[32];
+typedef uint8_t pubkey_t[256];
 
 struct superinfo_buffer_t {
     uuid_t root_dirnode;

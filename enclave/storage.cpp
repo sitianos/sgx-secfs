@@ -7,13 +7,13 @@
 #include <memory>
 
 static bool encrypt_buffer(
-    const unsigned char* src, size_t ssize, const unsigned char* aad, size_t ad_len,
-    unsigned char* dst, size_t dsize, unsigned char* tag, size_t tag_len
+    const uint8_t* src, size_t ssize, const uint8_t* aad, size_t ad_len, uint8_t* dst, size_t dsize,
+    uint8_t* tag, size_t tag_len
 ) {
     const mbedtls_cipher_info_t* cipher_info;
     mbedtls_cipher_context_t ctx_enc;
 
-    std::vector<unsigned char> iv;
+    std::vector<uint8_t> iv;
     size_t out_len, total_len;
 
     mbedtls_cipher_init(&ctx_enc);
@@ -66,13 +66,13 @@ static bool encrypt_buffer(
 }
 
 static bool decrypt_buffer(
-    const unsigned char* src, size_t ssize, const unsigned char* aad, size_t ad_len,
-    unsigned char* dst, size_t dsize, const unsigned char* tag, size_t tag_len
+    const uint8_t* src, size_t ssize, const uint8_t* aad, size_t ad_len, uint8_t* dst, size_t dsize,
+    const uint8_t* tag, size_t tag_len
 ) {
     const mbedtls_cipher_info_t* cipher_info;
     mbedtls_cipher_context_t ctx_dec;
 
-    std::vector<unsigned char> iv;
+    std::vector<uint8_t> iv;
     size_t out_len, total_len;
 
     mbedtls_cipher_init(&ctx_dec);
@@ -183,15 +183,15 @@ bool load_metadata(Metadata& metadata) {
 }
 
 bool save_metadata(const Metadata& metadata) {
-    void* buf;
+    uint8_t* buf;
     size_t size;
     char filename[40];
     sgx_status_t sgxstat;
 
     size = metadata.dump(nullptr, 0);
-    buf = malloc(size);
+    buf = new uint8_t[size];
     if (metadata.dump(buf, size) == 0) {
-        free(buf);
+        delete[] buf;
         return false;
     }
 
@@ -200,12 +200,12 @@ bool save_metadata(const Metadata& metadata) {
     metadata.uuid.unparse(filename);
     sgxstat = ocall_save_file(filename, buf, size);
     if (sgxstat != SGX_SUCCESS) {
-        free(buf);
+        delete[] buf;
         printf("SGX Error in %s(): (0x%4x) ", __func__);
         print_sgx_err(sgxstat);
         return false;
     }
-    free(buf);
+    delete[] buf;
     return true;
 }
 

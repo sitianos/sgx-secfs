@@ -12,7 +12,7 @@ UUID::UUID() {
 UUID::UUID(const UUID& uuid) : UUID(uuid.data) {
 }
 
-UUID::UUID(const unsigned char* bytes) {
+UUID::UUID(const uint8_t* bytes) {
     std::memcpy(data, bytes, sizeof(data));
 }
 
@@ -25,11 +25,11 @@ bool UUID::operator==(const UUID& uuid) {
     return std::memcpy(data, uuid.data, sizeof(data)) == 0;
 }
 
-void UUID::load(const unsigned char* in) {
+void UUID::load(const uint8_t* in) {
     std::memcpy(data, in, sizeof(data));
 }
 
-void UUID::dump(unsigned char* out) const {
+void UUID::dump(uint8_t* out) const {
     std::memcpy(out, data, sizeof(data));
 }
 
@@ -48,7 +48,7 @@ void UUID::unparse(std::string& out) const {
 }
 
 UUID UUID::gen_rand() {
-    unsigned char data[16];
+    uint8_t data[16];
     sgx_read_rand(data, sizeof(data));
     return UUID(data);
 }
