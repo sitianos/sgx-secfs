@@ -30,7 +30,6 @@ int ecall_create_volume(
 
     // Usertable::Userinfo owner;
     Usertable::Userinfo& owner = user_tb->usermap[1] = Usertable::Userinfo();
-
     owner.is_owner = true;
     if (!owner.set_pubkey(pubkey)) {
         printf("failed to load public key\n");

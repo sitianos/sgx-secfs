@@ -6,8 +6,8 @@ enclave {
         include "internal.hpp"
 
         public size_t ecall_calc_volkey_size();
-        public int ecall_create_volume([user_check] mbedtls_ecp_keypair* pubkey, [out, isary] uuid_t sp_uuid_out, [out, size = volkey_size] unsigned char* sealed_volkey, size_t volkey_size);
-        public int ecall_mount_volume(size_t uid, [user_check] const mbedtls_ecp_keypair* key, [in, isary] uuid_t sp_uuid_in, [in, size = volkey_size] const unsigned char* sealed_volkey, size_t volkey_size);
+        public int ecall_create_volume([user_check] mbedtls_ecp_keypair* pubkey, [out, isary] uuid_t sp_uuid_out, [out, size = volkey_size] uint8_t* sealed_volkey, size_t volkey_size);
+        public int ecall_mount_volume(size_t uid, [user_check] const mbedtls_ecp_keypair* key, [in, isary] uuid_t sp_uuid_in, [in, size = volkey_size] const uint8_t* sealed_volkey, size_t volkey_size);
 
         public int ecall_fs_getattr(ino_t ino, [out] struct stat_buffer_t* statbuf);
         public int ecall_fs_lookup(ino_t parent, [in, string] const char* name, [out] fuse_ino_t* ino, [out] struct stat_buffer_t* statbuf);

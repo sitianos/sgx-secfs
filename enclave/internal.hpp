@@ -14,6 +14,7 @@ extern "C" {
 
 typedef uint8_t hash_t[32];
 typedef uint8_t pubkey_t[256];
+typedef uint8_t tag_t[16];
 
 struct superinfo_buffer_t {
     uuid_t root_dirnode;
@@ -25,6 +26,7 @@ struct superinfo_buffer_t {
 
 struct chunk_t {
     uuid_t uuid;
+    tag_t tag;
 };
 
 struct filenode_buffer_t {

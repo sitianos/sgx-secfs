@@ -53,7 +53,7 @@ static bool encrypt_buffer(
     }
     total_len = out_len;
 
-    if (0 != mbedtls_cipher_finish(&ctx_enc, dst + out_len, &out_len) != 0) {
+    if (mbedtls_cipher_finish(&ctx_enc, dst + out_len, &out_len) != 0) {
         return false;
     }
     total_len += out_len;
@@ -154,58 +154,87 @@ int print_sgx_err(sgx_status_t sgxstat) {
 }
 
 bool load_metadata(Metadata& metadata) {
-    void* buf;
-    ssize_t size;
+    void* obuf;
+    uint8_t* ibuf;
+    ssize_t osize, bsize;
     char filename[40];
+    uint8_t aad[16];
+    uint8_t tag[16];
     sgx_status_t sgxstat;
 
     metadata.uuid.unparse(filename);
+    metadata.uuid.dump(aad);
 
-    sgxstat = ocall_load_file(filename, &buf, &size);
+    sgxstat = ocall_load_file(filename, &obuf, &osize);
     if (sgxstat != SGX_SUCCESS) {
         printf("SGX Error in %s(): (0x%4x) ", __func__);
         print_sgx_err(sgxstat);
         return false;
     }
-    if (size < 0) {
+    if (osize < 0) {
         printf("failed to fetch file\n");
         return false;
     }
 
-    // decryption here
+    bsize = osize - sizeof(tag);
+    memcpy(tag, obuf + bsize, sizeof(tag));
 
-    if (!metadata.load(buf, size)) {
+    ibuf = new uint8_t[bsize];
+
+    // decryption here
+    if (!decrypt_buffer(
+            static_cast<uint8_t*>(obuf), bsize, aad, sizeof(aad), ibuf, bsize, tag, sizeof(tag)
+        )) {
+        printf("failed to decrypt metadata\n");
         return false;
     }
 
-    ocall_free(buf);
+    if (!metadata.load(ibuf, bsize)) {
+        return false;
+    }
+
+    ocall_free(obuf);
     return true;
 }
 
 bool save_metadata(const Metadata& metadata) {
-    uint8_t* buf;
-    size_t size;
+    uint8_t* ibuf;
+    uint8_t* obuf;
+    size_t isize, bsize;
     char filename[40];
+    uint8_t aad[16];
+    uint8_t tag[16];
     sgx_status_t sgxstat;
 
-    size = metadata.dump(nullptr, 0);
-    buf = new uint8_t[size];
-    if (metadata.dump(buf, size) == 0) {
-        delete[] buf;
+    metadata.uuid.dump(aad);
+    isize = metadata.dump(nullptr, 0);
+    ibuf = new uint8_t[isize];
+    if (metadata.dump(ibuf, isize) == 0) {
+        delete[] ibuf;
         return false;
     }
 
-    // encryption here
+    bsize = isize + sizeof(tag);
+    obuf = new uint8_t[bsize];
+
+    if (!encrypt_buffer(ibuf, isize, aad, sizeof(aad), obuf, isize, tag, sizeof(tag))) {
+        delete[] ibuf;
+        delete[] obuf;
+        printf("failed to encrypt metadata\n");
+        return false;
+    }
+    memcpy(obuf + isize, tag, sizeof(tag));
+    delete[] ibuf;
 
     metadata.uuid.unparse(filename);
-    sgxstat = ocall_save_file(filename, buf, size);
+    sgxstat = ocall_save_file(filename, obuf, bsize);
     if (sgxstat != SGX_SUCCESS) {
-        delete[] buf;
+        delete[] obuf;
         printf("SGX Error in %s(): (0x%4x) ", __func__);
         print_sgx_err(sgxstat);
         return false;
     }
-    delete[] buf;
+    delete[] obuf;
     return true;
 }
 
@@ -228,14 +257,16 @@ bool remove_metadata(const UUID& uuid) {
 }
 
 ssize_t load_chunk(Filenode::Chunk& chunk) {
-    void* buf;
+    void* obuf;
     ssize_t size;
     char filename[40];
+    uint8_t aad[16];
     sgx_status_t sgxstat;
 
+    chunk.uuid.dump(aad);
     chunk.uuid.unparse(filename);
 
-    sgxstat = ocall_load_file(filename, &buf, &size);
+    sgxstat = ocall_load_file(filename, &obuf, &size);
     if (sgxstat != SGX_SUCCESS) {
         printf("SGX Error in %s(): (0x%4x) ", __func__);
         print_sgx_err(sgxstat);
@@ -248,28 +279,42 @@ ssize_t load_chunk(Filenode::Chunk& chunk) {
 
     chunk.allocate();
 
-    // decryption here
-    memcpy_verw_s(chunk.mem, CHUNKSIZE, buf, size);
+    if (!decrypt_buffer(
+            (uint8_t*)obuf, size, aad, sizeof(aad), (uint8_t*)chunk.mem, CHUNKSIZE, chunk.tag,
+            sizeof(tag_t)
+        )) {
+        printf("failed to decrypt chunk\n");
+        return -1;
+    }
+
     chunk.modified = false;
 
-    ocall_free(buf);
+    ocall_free(obuf);
     return size;
 }
 
 ssize_t save_chunk(Filenode::Chunk& chunk) {
-    void* obuf;
+    uint8_t* obuf;
     char filename[40];
+    uint8_t aad[16];
     sgx_status_t sgxstat;
 
     try {
-        obuf = new char[CHUNKSIZE];
+        obuf = new uint8_t[CHUNKSIZE];
     } catch (std::exception& e) {
         printf("%s\n", e.what());
         return -1;
     }
 
     // encryption here
-    memcpy_verw_s(obuf, CHUNKSIZE, chunk.mem, CHUNKSIZE);
+    chunk.uuid.dump(aad);
+    if (!encrypt_buffer(
+            (uint8_t*)chunk.mem, CHUNKSIZE, aad, sizeof(aad), obuf, CHUNKSIZE, chunk.tag,
+            sizeof(tag_t)
+        )) {
+        printf("filaed to encrypt chunk\n");
+        return -1;
+    }
 
     chunk.uuid.unparse(filename);
 

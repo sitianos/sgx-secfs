@@ -22,6 +22,7 @@ class Filenode : public Inode {
         UUID uuid;
         bool modified;
         char* mem;
+        tag_t tag;
     };
 
     using Inode::Inode;
