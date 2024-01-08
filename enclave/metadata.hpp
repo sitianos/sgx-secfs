@@ -7,7 +7,7 @@
 
 class Metadata {
   public:
-    Metadata(const UUID& uuid);
+    Metadata(const UUID& _uuid);
     virtual ~Metadata() = default;
 
     virtual bool load(const void* buf, size_t bsize) = 0;
@@ -20,10 +20,12 @@ class Metadata {
 
 class Inode : public Metadata {
   public:
-    using Metadata::Metadata;
+    // using Metadata::Metadata;
+    Inode(const UUID& _uuid);
 
     virtual void dump_stat(stat_buffer_t* buf) const = 0;
     virtual size_t nlink() const = 0;
 
     ino_t ino;
+    uint32_t refcount;
 };

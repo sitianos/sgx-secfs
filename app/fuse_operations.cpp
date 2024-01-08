@@ -38,16 +38,28 @@ void secfs_lookup(fuse_req_t req, fuse_ino_t parent, const char* name) {
         fuse_reply_err(req, err);
     } else {
         ep.ino = ino;
-        ep.attr_timeout = ep.entry_timeout = 1.0;
+        ep.attr_timeout = ep.entry_timeout = 10.0;
         copy_statbuf(ep.attr, statbuf);
         fuse_reply_entry(req, &ep);
-        printf("    lookup(parent=%ld, name=%s) -> ino=%ld\n", parent, name, ino);
+        fuse_log(FUSE_LOG_DEBUG, "    lookup(parent=%ld, name=%s) -> ino=%ld\n", parent, name, ino);
     }
 }
 
 void secfs_forget(fuse_req_t req, fuse_ino_t ino, uint64_t nlookup) {
     (void)req;
+    sgx_status_t sgxstat;
+    int remain;
+
     fuse_log(FUSE_LOG_DEBUG, "forget(ino=%ld, nlookup=%ld)\n", ino, nlookup);
+    sgxstat = ecall_fs_forget(secfs::global_vol.eid, &remain, ino, nlookup);
+    if (sgxstat != SGX_SUCCESS) {
+        std::cerr << enclave_err_msg(sgxstat) << std::endl;
+    } else {
+        fuse_log(
+            FUSE_LOG_DEBUG, "    forget(ino=%ld, nlookup=%ld) -> remain=%d\n", ino, nlookup, remain
+        );
+    }
+    fuse_reply_none(req);
 }
 
 void secfs_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info* fi) {

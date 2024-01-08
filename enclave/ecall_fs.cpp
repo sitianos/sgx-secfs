@@ -27,40 +27,59 @@ int ecall_fs_lookup(ino_t parent, const char* name, ino_t* ino, stat_buffer_t* s
     for (decltype(Dirnode::dirent)::iterator dent = parent_dn->dirent.begin();
          dent != parent_dn->dirent.end(); dent++) {
         if (dent->name == name) {
-            Inode* ino_p;
-
+            std::shared_ptr<Inode> inode;
             iter = inode_map.find(dent->ino);
+
             if (iter != inode_map.end()) {
-                ino_p = iter->second.get();
-                ino_p->dump_stat(statbuf);
-                *ino = dent->ino;
-                return 0;
+                inode = iter->second;
+            } else {
+                Inode* ino_p;
+                if (dent->type == T_DT_DIR) {
+                    Dirnode* dir_p = new Dirnode(dent->uuid);
+                    ino_p = dir_p;
+                } else if (dent->type == T_DT_REG) {
+                    Filenode* file_p = new Filenode(dent->uuid);
+                    ino_p = file_p;
+                } else {
+                    printf("only file and directory lookup is supported\n");
+                    return ENOENT;
+                }
+                if (!load_metadata(*ino_p)) {
+                    printf("failed to load metadata\n");
+                    delete ino_p;
+                    return ENONET;
+                }
+                inode = inode_map[dent->ino] = std::shared_ptr<Inode>(ino_p);
             }
 
-            if (dent->type == T_DT_DIR) {
-                Dirnode* dir_p = new Dirnode(dent->uuid);
-                ino_p = dir_p;
-            } else if (dent->type == T_DT_REG) {
-                Filenode* file_p = new Filenode(dent->uuid);
-                ino_p = file_p;
-            } else {
-                printf("only file and directory lookup is supported\n");
+            if (inode->ino != dent->ino) {
+                printf("loaded metadata inode number does not match one in parent metadata\n");
                 return ENOENT;
             }
-            if (!load_metadata(*ino_p)) {
-                printf("failed to load metadata\n");
-                delete ino_p;
-                return ENONET;
-            }
 
-            ino_p->dump_stat(statbuf);
-            inode_map[dent->ino] = std::shared_ptr<Inode>(ino_p);
+            inode->dump_stat(statbuf);
+            inode->refcount++;
 
             *ino = dent->ino;
             return 0;
         }
     }
     return ENOENT;
+}
+
+int ecall_fs_forget(ino_t ino, size_t nlookup) {
+    decltype(inode_map)::iterator iter = inode_map.find(ino);
+    if (iter == inode_map.end()) {
+        return ENOENT;
+    }
+    std::shared_ptr<Inode> inode = iter->second;
+    int remain = inode->refcount - nlookup;
+    if (remain <= 0) {
+        inode_map.erase(iter);
+    } else {
+        inode->refcount = remain;
+    }
+    return remain;
 }
 
 int ecall_fs_getattr(ino_t ino, stat_buffer_t* statbuf) {
@@ -109,6 +128,7 @@ int ecall_fs_mkdir(
     *ino = superinfo->max_ino;
     superinfo->max_ino++;
     new_dn->dump_stat(statbuf);
+    new_dn->refcount++;
 
     save_metadata(*superinfo);
     save_metadata(*new_dn);
@@ -429,6 +449,7 @@ int ecall_fs_create(
     *ino = superinfo->max_ino;
     superinfo->max_ino++;
     new_fn->dump_stat(statbuf);
+    new_fn->refcount++;
 
     save_metadata(*superinfo);
     save_metadata(*new_fn);
