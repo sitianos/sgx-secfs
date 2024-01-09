@@ -13,7 +13,11 @@ bool Usertable::load(const void* buf, size_t bsize) {
         if (usermap.count(user.uid) != 0) {
             return false;
         }
-        usermap[user.uid] = Userinfo(user);
+        try {
+            usermap.emplace(user.uid, user);
+        } catch (std::exception& e) {
+            return false;
+        }
     }
     return true;
 }
@@ -43,7 +47,7 @@ mbedtls_ecp_group_id Usertable::Userinfo::grp_id = MBEDTLS_ECP_DP_SECP384R1;
 Usertable::Userinfo::Userinfo() {
     mbedtls_ecp_keypair_init(&pubkey);
     if (mbedtls_ecp_group_load(&pubkey.MBEDTLS_PRIVATE(grp), grp_id) != 0) {
-        return;
+        throw std::invalid_argument("mbedtls_ecp_group_load");
     }
 }
 
@@ -54,11 +58,33 @@ Usertable::Userinfo::Userinfo(const userinfo_t& userinfo) : Userinfo() {
             userinfo.keysize
         ) != 0) {
         mbedtls_ecp_keypair_init(&pubkey);
-        return;
+        throw std::invalid_argument("mbedtls_ecp_point_read_binary");
+    }
+    if (mbedtls_ecp_check_pubkey(&pubkey.MBEDTLS_PRIVATE(grp), &pubkey.MBEDTLS_PRIVATE(Q)) != 0) {
+        throw std::invalid_argument("mbedtls_ecp_check_pubkey");
     }
 }
 
 Usertable::Userinfo::Userinfo(const userinfo_t* userinfo) : Userinfo(*userinfo) {
+}
+
+Usertable::Userinfo::~Userinfo() {
+    mbedtls_ecp_keypair_free(&pubkey);
+}
+
+bool Usertable::Userinfo::load(const userinfo_t& userinfo) {
+    is_owner = userinfo.is_owner;
+    if (mbedtls_ecp_point_read_binary(
+            &pubkey.MBEDTLS_PRIVATE(grp), &pubkey.MBEDTLS_PRIVATE(Q), userinfo.pubkey,
+            userinfo.keysize
+        ) != 0) {
+        mbedtls_ecp_keypair_init(&pubkey);
+        return false;
+    }
+    if (mbedtls_ecp_check_pubkey(&pubkey.MBEDTLS_PRIVATE(grp), &pubkey.MBEDTLS_PRIVATE(Q)) != 0) {
+        return false;
+    }
+    return true;
 }
 
 bool Usertable::Userinfo::set_pubkey(const mbedtls_ecp_keypair* key) {
@@ -69,10 +95,6 @@ bool Usertable::Userinfo::set_pubkey(const mbedtls_ecp_keypair* key) {
     if (mbedtls_ecp_check_pubkey(&pubkey.MBEDTLS_PRIVATE(grp), &pubkey.MBEDTLS_PRIVATE(Q)) != 0)
         return false;
     return true;
-}
-
-Usertable::Userinfo::~Userinfo() {
-    mbedtls_ecp_keypair_free(&pubkey);
 }
 
 void Usertable::Userinfo::dump(userinfo_t* userinfo) const {

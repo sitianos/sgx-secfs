@@ -216,7 +216,7 @@ int ecall_fs_rmdir(fuse_ino_t parent, const char* name) {
 }
 
 int ecall_fs_open(fuse_ino_t ino, open_flag_t flags) {
-    auto iter = inode_map.find(ino);
+    decltype(inode_map)::iterator iter = inode_map.find(ino);
     if (iter == inode_map.end()) {
         return EACCES;
     }
@@ -238,7 +238,7 @@ int ecall_fs_open(fuse_ino_t ino, open_flag_t flags) {
 }
 
 int ecall_fs_read(fuse_ino_t ino, char* buf, off_t offset, size_t* size) {
-    auto iter = inode_map.find(ino);
+    decltype(inode_map)::iterator iter = inode_map.find(ino);
     if (iter == inode_map.end()) {
         return EINVAL;
     }
@@ -290,7 +290,7 @@ int ecall_fs_read(fuse_ino_t ino, char* buf, off_t offset, size_t* size) {
 }
 
 int ecall_fs_write(fuse_ino_t ino, const char* buf, off_t offset, size_t* size) {
-    auto iter = inode_map.find(ino);
+    decltype(inode_map)::iterator iter = inode_map.find(ino);
     if (iter == inode_map.end()) {
         return EINVAL;
     }
@@ -346,7 +346,7 @@ int ecall_fs_write(fuse_ino_t ino, const char* buf, off_t offset, size_t* size) 
 }
 
 int ecall_fs_flush(fuse_ino_t ino) {
-    auto iter = inode_map.find(ino);
+    decltype(inode_map)::iterator iter = inode_map.find(ino);
     if (iter == inode_map.end()) {
         return EINVAL;
     }
@@ -354,8 +354,6 @@ int ecall_fs_flush(fuse_ino_t ino) {
     if (!(fn = std::dynamic_pointer_cast<Filenode>(iter->second))) {
         return EINVAL;
     }
-    if (!save_metadata(*fn))
-        return EIO;
 
     for (Filenode::Chunk& chunk : fn->chunks) {
         if (chunk.modified) {
@@ -370,11 +368,14 @@ int ecall_fs_flush(fuse_ino_t ino) {
         }
         chunk.deallocate();
     }
+    if (!save_metadata(*fn))
+        return EIO;
+
     return 0;
 }
 
 int ecall_fs_get_dirent_size(fuse_ino_t ino, size_t* entnum) {
-    auto iter = inode_map.find(ino);
+    decltype(inode_map)::iterator iter = inode_map.find(ino);
     if (iter == inode_map.end()) {
         return ENOENT;
     }
@@ -387,7 +388,7 @@ int ecall_fs_get_dirent_size(fuse_ino_t ino, size_t* entnum) {
 }
 
 int ecall_fs_get_dirent(fuse_ino_t ino, dirent_t* buf, size_t count) {
-    auto iter = inode_map.find(ino);
+    decltype(inode_map)::iterator iter = inode_map.find(ino);
     if (iter == inode_map.end()) {
         return ENOENT;
     }
@@ -406,7 +407,7 @@ int ecall_fs_get_dirent(fuse_ino_t ino, dirent_t* buf, size_t count) {
 }
 
 int ecall_fs_access(fuse_ino_t ino, int mask) {
-    auto iter = inode_map.find(ino);
+    decltype(inode_map)::iterator iter = inode_map.find(ino);
     if (iter == inode_map.end()) {
         return ENOENT;
     }
@@ -417,7 +418,7 @@ int ecall_fs_create(
     fuse_ino_t parent, const char* name, mode_t mode, fuse_ino_t* ino, struct stat_buffer_t* statbuf
 ) {
     *ino = 0;
-    auto iter = inode_map.find(parent);
+    decltype(inode_map)::iterator iter = inode_map.find(parent);
     if (iter == inode_map.end()) {
         return ENOENT;
     }

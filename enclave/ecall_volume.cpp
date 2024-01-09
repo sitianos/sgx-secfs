@@ -46,8 +46,6 @@ int ecall_create_volume(
     sgx_status_t sgxstat;
     sgx_read_rand(volkey, sizeof(volkey));
 
-    print_hex(volkey, sizeof(volkey));
-
     size_t key_size = sgx_calc_sealed_data_size(strlen(volkey_aad), VOLKEYSIZE);
     if (volkey_size < key_size) {
         printf("given key size is lower than required key size\n");
@@ -111,13 +109,18 @@ int ecall_mount_volume(
         return 1;
     }
 
-    print_hex(volkey, sizeof(volkey));
-
     UUID sp_uuid(sp_uuid_in);
     superinfo = std::make_shared<Superinfo>(sp_uuid);
 
     if (!load_metadata(*superinfo)) {
         printf("failed to load superinfo\n");
+        return 1;
+    }
+
+    std::shared_ptr<Usertable> user_table_p = std::make_shared<Usertable>(superinfo->user_table);
+
+    if (!load_metadata(*user_table_p)) {
+        printf("failed to load user table\n");
         return 1;
     }
 

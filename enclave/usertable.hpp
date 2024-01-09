@@ -14,6 +14,7 @@ class Usertable : public Metadata {
         Userinfo(const userinfo_t* userinfo);
         ~Userinfo();
 
+        bool load(const userinfo_t& userinfo);
         bool set_pubkey(const mbedtls_ecp_keypair* key);
         void dump(userinfo_t* userinfo) const;
 

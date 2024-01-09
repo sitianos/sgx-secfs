@@ -1,0 +1,23 @@
+version: '3'
+
+services:
+  secfs_hw:
+    container_name: docker_secfs_hw
+    image: secfs_hw
+    build:
+      context: ../
+      dockerfile: docker/Dockerfile_HW
+    devices:
+       - /dev/sgx_enclave
+       - /dev/sgx_provision
+       - /dev/fuse
+    cap_add:
+      - SYS_ADMIN
+    security_opt:
+      - apparmor:unconfined
+    stdin_open: true
+    tty: true
+#    environment:
+#     - LD_LIBRARY_PATH=/opt/intel/sgxsdk/lib64
+    command:
+      bash

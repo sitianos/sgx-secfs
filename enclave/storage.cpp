@@ -279,6 +279,8 @@ ssize_t load_chunk(Filenode::Chunk& chunk) {
 
     chunk.allocate();
 
+    // memcpy(chunk.mem, obuf, CHUNKSIZE);
+
     if (!decrypt_buffer(
             (uint8_t*)obuf, size, aad, sizeof(aad), (uint8_t*)chunk.mem, CHUNKSIZE, chunk.tag,
             sizeof(tag_t)
@@ -317,6 +319,8 @@ ssize_t save_chunk(Filenode::Chunk& chunk) {
     }
 
     chunk.uuid.unparse(filename);
+
+    // memcpy(obuf, chunk.mem, CHUNKSIZE);
 
     sgxstat = ocall_save_file(filename, obuf, CHUNKSIZE);
     if (sgxstat != SGX_SUCCESS) {

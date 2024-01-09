@@ -3,7 +3,7 @@ include ../build.mk
 
 ########## SGX APP Configuration ##########
 ifeq ($(SGX_MODE), SIM)
-	Urts_LIBS := -lsgx_urts_sim -lsgx_uae_service_sim
+	Urts_LIBS := -Wl,--rpath $(SGX_LIBRARY_PATH) -lsgx_urts_sim -lsgx_uae_service_sim
 else ifeq ($(SGX_MODE), HW)
 	Urts_LIBS := -lsgx_urts -lsgx_uae_service
 else
@@ -26,7 +26,7 @@ LIBS := $(shell pkg-config fuse3 --libs) -lmbedtls -lmbedcrypto -luuid
 CFLAGS := $(SGX_COMMON_CFLAGS) $(SGX_APP_CFLAGS) $(INCLUDES)
 CXXFLAGS := $(SGX_COMMON_CXXFLAGS) $(SGX_APP_CFLAGS) $(INCLUDES)
 
-LDFLAGS := -L$(SGX_LIBRARY_PATH) -Wl,--rpath $(SGX_LIBRARY_PATH) $(Urts_LIBS) $(LIBS)
+LDFLAGS := -L$(SGX_LIBRARY_PATH) $(Urts_LIBS) $(LIBS)
 
 OBJ_DIR := $(BUILD_DIR)/app
 objs := main.o cli.o fuse_operations.o volume.o enclave.o ocall.o backend/local.o
