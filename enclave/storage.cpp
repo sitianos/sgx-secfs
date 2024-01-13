@@ -259,7 +259,7 @@ bool remove_metadata(const UUID& uuid) {
     return true;
 }
 
-ssize_t load_chunk(Filenode::Chunk& chunk) {
+ssize_t load_chunk(Chunk& chunk) {
     void* obuf;
     ssize_t size;
     char filename[40];
@@ -299,7 +299,7 @@ ssize_t load_chunk(Filenode::Chunk& chunk) {
     return size;
 }
 
-ssize_t save_chunk(Filenode::Chunk& chunk) {
+ssize_t save_chunk(Chunk& chunk) {
     uint8_t* obuf;
     char filename[40];
     uint8_t iv[12];

@@ -115,7 +115,7 @@ int ecall_fs_mkdir(
     new_dn->name = name;
     new_dn->dirent.resize(0);
 
-    Dirnode::Dirent new_dirent;
+    Dirent new_dirent;
     new_dirent.ino = superinfo->max_ino;
     new_dirent.name = name;
     new_dirent.type = T_DT_DIR;
@@ -159,7 +159,7 @@ int ecall_fs_unlink(fuse_ino_t parent, const char* name) {
                 printf("failed to remove metadata\n");
                 return EACCES;
             }
-            for (Filenode::Chunk& chunk : file_p->chunks) {
+            for (Chunk& chunk : file_p->chunks) {
                 if (!remove_chunk(chunk.uuid)) {
                     printf("failed to remove chunk\n");
                 }
@@ -226,7 +226,7 @@ int ecall_fs_open(fuse_ino_t ino, open_flag_t flags) {
     }
     // here is permission check
     if (flags & OF_TRUNC) {
-        for (Filenode::Chunk& chunk : fn->chunks) {
+        for (Chunk& chunk : fn->chunks) {
             if (!remove_chunk(chunk.uuid)) {
                 printf("failed to remove chunk\n");
             }
@@ -262,7 +262,7 @@ int ecall_fs_read(fuse_ino_t ino, char* buf, off_t offset, size_t* size) {
     size_t wsize = 0;
 
     for (size_t idx = chunk_st; idx < chunk_en; idx++) {
-        Filenode::Chunk& chunk = fn->chunks[idx];
+        Chunk& chunk = fn->chunks[idx];
         off_t off_st = (idx == chunk_st) ? offset % CHUNKSIZE : 0;
         off_t off_en = (idx == chunk_en - 1) ? (offset + *size - 1) % CHUNKSIZE + 1 : CHUNKSIZE;
 
@@ -311,7 +311,7 @@ int ecall_fs_write(fuse_ino_t ino, const char* buf, off_t offset, size_t* size) 
     }
     size_t wsize = 0;
     for (size_t idx = chunk_st; idx < chunk_en; idx++) {
-        Filenode::Chunk& chunk = fn->chunks[idx];
+        Chunk& chunk = fn->chunks[idx];
         off_t off_st = (idx == chunk_st) ? offset % CHUNKSIZE : 0;
         off_t off_en = (idx == chunk_en - 1) ? (offset + *size - 1) % CHUNKSIZE + 1 : CHUNKSIZE;
 
@@ -355,7 +355,7 @@ int ecall_fs_flush(fuse_ino_t ino) {
         return EINVAL;
     }
 
-    for (Filenode::Chunk& chunk : fn->chunks) {
+    for (Chunk& chunk : fn->chunks) {
         if (chunk.modified) {
             if (chunk.mem == nullptr) {
                 printf("modified bit is set but memory is not allocated\n");
@@ -397,7 +397,7 @@ int ecall_fs_get_dirent(fuse_ino_t ino, dirent_t* buf, size_t count) {
         return ENOTDIR;
     }
     size_t i = 0;
-    for (Dirnode::Dirent& dent : parent_dn->dirent) {
+    for (Dirent& dent : parent_dn->dirent) {
         dent.dump(&buf[i]);
         i++;
         if (i >= count)
@@ -438,7 +438,7 @@ int ecall_fs_create(
     new_fn->ino = superinfo->max_ino;
     new_fn->size = 0;
 
-    Dirnode::Dirent new_dirent;
+    Dirent new_dirent;
     new_dirent.ino = superinfo->max_ino;
     new_dirent.name = name;
     new_dirent.type = T_DT_REG;

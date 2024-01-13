@@ -16,8 +16,8 @@ bool save_metadata(const Metadata& metadata);
 
 bool remove_metadata(const UUID& uuid);
 
-ssize_t load_chunk(Filenode::Chunk& chunk);
+ssize_t load_chunk(Chunk& chunk);
 
-ssize_t save_chunk(Filenode::Chunk& chunk);
+ssize_t save_chunk(Chunk& chunk);
 
 bool remove_chunk(const UUID& uuid);

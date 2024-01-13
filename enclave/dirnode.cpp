@@ -49,14 +49,14 @@ size_t Dirnode::nlink() const {
     return cnt;
 }
 
-Dirnode::Dirent::Dirent(const dirent_t* dent)
+Dirent::Dirent(const dirent_t* dent)
     : ino(dent->ino), name(dent->name), type(dent->type), uuid(dent->uuid) {
 }
 
-Dirnode::Dirent::Dirent(const dirent_t& dent) : Dirent(&dent) {
+Dirent::Dirent(const dirent_t& dent) : Dirent(&dent) {
 }
 
-void Dirnode::Dirent::dump(dirent_t* dent) const {
+void Dirent::dump(dirent_t* dent) const {
     dent->ino = ino;
     std::memset(dent->name, 0, sizeof(dent->name));
     name.copy(dent->name, sizeof(dent->name));

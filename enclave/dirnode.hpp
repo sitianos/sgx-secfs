@@ -5,23 +5,23 @@
 #include <string>
 #include <vector>
 
+class Dirent {
+  public:
+    Dirent() = default;
+    Dirent(const dirent_t* dent);
+    Dirent(const dirent_t& dent);
+
+    void dump(dirent_t* dent) const;
+
+    ino_t ino;
+    std::string name;
+    dirent_type_t type;
+    UUID uuid;
+};
+
 class Dirnode : public Inode {
   private:
   public:
-    class Dirent {
-      public:
-        Dirent() = default;
-        Dirent(const dirent_t* dent);
-        Dirent(const dirent_t& dent);
-
-        void dump(dirent_t* dent) const;
-
-        ino_t ino;
-        std::string name;
-        dirent_type_t type;
-        UUID uuid;
-    };
-
     using Inode::Inode;
     ~Dirnode() override = default;
 
