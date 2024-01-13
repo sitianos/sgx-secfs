@@ -5,15 +5,16 @@
 #include <mbedtls/cipher.h>
 #include <mbusafecrt.h>
 #include <memory>
+#include <sgx_trts.h>
+#include <vector>
 
 static bool encrypt_buffer(
-    const uint8_t* src, size_t ssize, const uint8_t* aad, size_t ad_len, uint8_t* dst, size_t dsize,
-    uint8_t* tag, size_t tag_len
+    const uint8_t* iv, size_t iv_len, const uint8_t* aad, size_t ad_len, const uint8_t* src,
+    size_t ssize, uint8_t* dst, size_t dsize, uint8_t* tag, size_t tag_len
 ) {
     const mbedtls_cipher_info_t* cipher_info;
     mbedtls_cipher_context_t ctx_enc;
 
-    std::vector<uint8_t> iv;
     size_t out_len, total_len;
 
     mbedtls_cipher_init(&ctx_enc);
@@ -30,13 +31,11 @@ static bool encrypt_buffer(
         return false;
     }
 
-    iv.assign(mbedtls_cipher_get_iv_size(&ctx_enc), 0);
-
     if (mbedtls_cipher_setkey(&ctx_enc, volkey, sizeof(volkey), MBEDTLS_ENCRYPT) != 0) {
         return false;
     }
 
-    if (mbedtls_cipher_set_iv(&ctx_enc, iv.data(), iv.size()) != 0) {
+    if (mbedtls_cipher_set_iv(&ctx_enc, iv, iv_len) != 0) {
         return false;
     }
 
@@ -66,13 +65,12 @@ static bool encrypt_buffer(
 }
 
 static bool decrypt_buffer(
-    const uint8_t* src, size_t ssize, const uint8_t* aad, size_t ad_len, uint8_t* dst, size_t dsize,
-    const uint8_t* tag, size_t tag_len
+    const uint8_t* iv, size_t iv_len, const uint8_t* aad, size_t ad_len, const uint8_t* src,
+    size_t ssize, uint8_t* dst, size_t dsize, const uint8_t* tag, size_t tag_len
 ) {
     const mbedtls_cipher_info_t* cipher_info;
     mbedtls_cipher_context_t ctx_dec;
 
-    std::vector<uint8_t> iv;
     size_t out_len, total_len;
 
     mbedtls_cipher_init(&ctx_dec);
@@ -89,13 +87,11 @@ static bool decrypt_buffer(
         return false;
     }
 
-    iv.assign(mbedtls_cipher_get_iv_size(&ctx_dec), 0);
-
     if (mbedtls_cipher_setkey(&ctx_dec, volkey, sizeof(volkey), MBEDTLS_DECRYPT) != 0) {
         return false;
     }
 
-    if (mbedtls_cipher_set_iv(&ctx_dec, iv.data(), iv.size()) != 0) {
+    if (mbedtls_cipher_set_iv(&ctx_dec, iv, iv_len) != 0) {
         return false;
     }
 
@@ -158,6 +154,7 @@ bool load_metadata(Metadata& metadata) {
     uint8_t* ibuf;
     ssize_t osize, bsize;
     char filename[40];
+    uint8_t iv[12];
     uint8_t aad[16];
     uint8_t tag[16];
     sgx_status_t sgxstat;
@@ -180,10 +177,12 @@ bool load_metadata(Metadata& metadata) {
     memcpy(tag, obuf + bsize, sizeof(tag));
 
     ibuf = new uint8_t[bsize];
+    memset(iv, 0, sizeof(iv));
 
     // decryption here
     if (!decrypt_buffer(
-            static_cast<uint8_t*>(obuf), bsize, aad, sizeof(aad), ibuf, bsize, tag, sizeof(tag)
+            iv, sizeof(iv), aad, sizeof(aad), static_cast<uint8_t*>(obuf), bsize, ibuf, bsize, tag,
+            sizeof(tag)
         )) {
         printf("failed to decrypt metadata\n");
         return false;
@@ -202,6 +201,7 @@ bool save_metadata(const Metadata& metadata) {
     uint8_t* obuf;
     size_t isize, bsize;
     char filename[40];
+    uint8_t iv[12];
     uint8_t aad[16];
     uint8_t tag[16];
     sgx_status_t sgxstat;
@@ -216,8 +216,11 @@ bool save_metadata(const Metadata& metadata) {
 
     bsize = isize + sizeof(tag);
     obuf = new uint8_t[bsize];
+    memset(iv, 0, sizeof(iv));
 
-    if (!encrypt_buffer(ibuf, isize, aad, sizeof(aad), obuf, isize, tag, sizeof(tag))) {
+    if (!encrypt_buffer(
+            iv, sizeof(iv), aad, sizeof(aad), ibuf, isize, obuf, isize, tag, sizeof(tag)
+        )) {
         delete[] ibuf;
         delete[] obuf;
         printf("failed to encrypt metadata\n");
@@ -260,6 +263,7 @@ ssize_t load_chunk(Filenode::Chunk& chunk) {
     void* obuf;
     ssize_t size;
     char filename[40];
+    uint8_t iv[12];
     uint8_t aad[16];
     sgx_status_t sgxstat;
 
@@ -282,8 +286,8 @@ ssize_t load_chunk(Filenode::Chunk& chunk) {
     // memcpy(chunk.mem, obuf, CHUNKSIZE);
 
     if (!decrypt_buffer(
-            (uint8_t*)obuf, size, aad, sizeof(aad), (uint8_t*)chunk.mem, CHUNKSIZE, chunk.tag,
-            sizeof(tag_t)
+            chunk.iv, sizeof(iv_t), aad, sizeof(aad), (uint8_t*)obuf, size, (uint8_t*)chunk.mem,
+            CHUNKSIZE, chunk.tag, sizeof(tag_t)
         )) {
         printf("failed to decrypt chunk\n");
         return -1;
@@ -298,6 +302,7 @@ ssize_t load_chunk(Filenode::Chunk& chunk) {
 ssize_t save_chunk(Filenode::Chunk& chunk) {
     uint8_t* obuf;
     char filename[40];
+    uint8_t iv[12];
     uint8_t aad[16];
     sgx_status_t sgxstat;
 
@@ -308,16 +313,17 @@ ssize_t save_chunk(Filenode::Chunk& chunk) {
         return -1;
     }
 
+    sgx_read_rand(chunk.iv, sizeof(iv_t));
+
     // encryption here
     chunk.uuid.dump(aad);
     if (!encrypt_buffer(
-            (uint8_t*)chunk.mem, CHUNKSIZE, aad, sizeof(aad), obuf, CHUNKSIZE, chunk.tag,
-            sizeof(tag_t)
+            chunk.iv, sizeof(iv_t), aad, sizeof(aad), (uint8_t*)chunk.mem, CHUNKSIZE, obuf,
+            CHUNKSIZE, chunk.tag, sizeof(tag_t)
         )) {
         printf("filaed to encrypt chunk\n");
         return -1;
     }
-
     chunk.uuid.unparse(filename);
 
     // memcpy(obuf, chunk.mem, CHUNKSIZE);
@@ -330,7 +336,7 @@ ssize_t save_chunk(Filenode::Chunk& chunk) {
     }
     chunk.modified = false;
 
-    delete obuf;
+    delete[] obuf;
     return CHUNKSIZE;
 }
 

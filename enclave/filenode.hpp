@@ -22,6 +22,7 @@ class Filenode : public Inode {
         UUID uuid;
         bool modified;
         char* mem;
+        iv_t iv;
         tag_t tag;
     };
 
