@@ -1,6 +1,7 @@
 BUILD_DIR ?= ../build
 include ../build.mk
 
+Enclave_CFLAGS ?= 
 Enclave_Version_Script := enclave_debug.lds
 ifeq ($(SGX_MODE), HW)
 ifneq ($(SGX_DEBUG), 1)
@@ -21,7 +22,7 @@ Crypto_Library_Name := sgx_tcrypto
 
 Enclave_Include_Paths := $(addprefix -I, . ../include $(SGX_SDK)/include $(SGX_SDK)/include/libcxx $(SGX_SDK)/include/tlibc) $(shell pkg-config fuse3 --cflags)
 
-SGX_ENCLAVE_CFLAGS = -nostdinc -fvisibility=hidden -fpie -fstack-protector -fno-builtin-printf $(Enclave_Include_Paths)
+SGX_ENCLAVE_CFLAGS = -nostdinc -fvisibility=hidden -fpie -fstack-protector -fno-builtin-printf $(Enclave_Include_Paths) $(Enclave_CFLAGS)
 CFLAGS :=  $(SGX_COMMON_CFLAGS) $(SGX_ENCLAVE_CFLAGS)
 CXXFLAGS := $(SGX_COMMON_CXXFLAGS) $(SGX_ENCLAVE_CFLAGS) -nostdinc++
 
