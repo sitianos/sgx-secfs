@@ -1,6 +1,7 @@
 #include "enclave_t.h"
 #include "filenode.hpp"
 #include "metadata.hpp"
+#include "volume.hpp"
 
 void hexdump(const void* bytes, size_t len, char* out);
 
@@ -16,8 +17,10 @@ bool save_metadata(const Metadata& metadata);
 
 bool remove_metadata(const UUID& uuid);
 
-ssize_t load_chunk(Chunk& chunk);
+ChunkStore::iterator load_chunk(ChunkStore& store, std::shared_ptr<Filenode> fn, size_t chunk_idx);
 
-ssize_t save_chunk(Chunk& chunk);
+ChunkStore::iterator save_chunk(ChunkStore& store, std::shared_ptr<Filenode> fn, size_t chunk_idx);
+
+bool flush_chunk(ChunkStore& store, Chunk& chunk);
 
 bool remove_chunk(const UUID& uuid);

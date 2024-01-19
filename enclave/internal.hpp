@@ -10,7 +10,21 @@
 extern "C" {
 #endif
 
-#define VOLKEYSIZE 256
+#ifndef ENABLE_ENCRYPTION
+#define ENABLE_ENCRYPTION (1)
+#endif
+
+#ifndef VOLKEYSIZE
+#define VOLKEYSIZE (256)
+#endif
+
+#ifndef MAX_CACHE_NUM
+#define MAX_CACHE_NUM (4)
+#endif
+
+#ifndef CHUNKSIZE
+#define CHUNKSIZE (4096)
+#endif
 
 typedef uint8_t hash_t[32];
 typedef uint8_t pubkey_t[256];

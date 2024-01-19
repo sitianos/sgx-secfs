@@ -38,6 +38,7 @@ struct secfs_options {
 
 static const struct fuse_opt option_spec[] = {
     {"--config %s", offsetof(secfs_options, volume_config), 0},
+    {"-c %s", offsetof(secfs_options, volume_config), 0},
     FUSE_OPT_END,
 };
 

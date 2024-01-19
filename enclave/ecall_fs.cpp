@@ -266,21 +266,16 @@ int ecall_fs_read(fuse_ino_t ino, char* buf, off_t offset, size_t* size) {
         off_t off_st = (idx == chunk_st) ? offset % CHUNKSIZE : 0;
         off_t off_en = (idx == chunk_en - 1) ? (offset + *size - 1) % CHUNKSIZE + 1 : CHUNKSIZE;
 
-        if (chunk.mem == nullptr) {
-            chunk.allocate();
-            ssize_t rsize = load_chunk(chunk);
-            if (rsize < 0) {
-                chunk.deallocate();
-                return EINVAL;
-            }
-            if (rsize > CHUNKSIZE) {
-                printf("fetched chunk is larger (%ld) than CHUNKSIZE\n", rsize);
-                return EINVAL;
-            }
+        decltype(local_cache)::iterator cache_iter = load_chunk(local_cache, fn, idx);
+
+        if (cache_iter == local_cache.end()) {
+            printf("failed to load chunk to local cache\n");
+            return EINVAL;
         }
-        memcpy_verw_s(buf + wsize, *size - wsize, chunk.mem + off_st, off_en - off_st);
+        ChunkCache& cache = *cache_iter;
+
+        memcpy_verw_s(buf + wsize, *size - wsize, cache.data.data() + off_st, off_en - off_st);
         wsize += off_en - off_st;
-        chunk.deallocate();
     }
     if (wsize != *size) {
         printf("write size and read size does not match");
@@ -311,34 +306,27 @@ int ecall_fs_write(fuse_ino_t ino, const char* buf, off_t offset, size_t* size) 
     }
     size_t wsize = 0;
     for (size_t idx = chunk_st; idx < chunk_en; idx++) {
-        Chunk& chunk = fn->chunks[idx];
         off_t off_st = (idx == chunk_st) ? offset % CHUNKSIZE : 0;
         off_t off_en = (idx == chunk_en - 1) ? (offset + *size - 1) % CHUNKSIZE + 1 : CHUNKSIZE;
+        off_t off_chunk_en = (idx == prev_size - 1) ? fn->size % CHUNKSIZE : CHUNKSIZE;
 
-        chunk.allocate();
-        if (idx < prev_size && (off_st != 0 || off_en != CHUNKSIZE)) {
-            ssize_t rsize = load_chunk(chunk);
-            if (rsize < 0) {
-                chunk.deallocate();
+        decltype(local_cache)::iterator cache_iter;
+
+        if (idx < prev_size && (off_st != 0 || off_en != off_chunk_en)) {
+            cache_iter = load_chunk(local_cache, fn, idx);
+
+            if (cache_iter == local_cache.end()) {
+                printf("failed to load chunk for writing\n");
                 return EINVAL;
             }
-            if (rsize > CHUNKSIZE) {
-                chunk.deallocate();
-                printf("fetched chunk is larger (%ld) than CHUNKSIZE\n", rsize);
-                return EINVAL;
-            }
+        } else {
+            cache_iter = save_chunk(local_cache, fn, idx);
         }
+        ChunkCache& cache = *cache_iter;
 
-        memcpy_verw_s(chunk.mem + off_st, CHUNKSIZE - off_st, buf + wsize, off_en - off_st);
-        chunk.modified = true;
+        memcpy_verw_s(cache.data.data() + off_st, CHUNKSIZE - off_st, buf + wsize, off_en - off_st);
+        cache.modified = true;
         wsize += off_en - off_st;
-        if (off_en == CHUNKSIZE) {
-            if (save_chunk(chunk) < 0) {
-                printf("failed to save chunk\n");
-                break;
-            }
-            chunk.deallocate();
-        }
     }
     *size = wsize;
     fn->size = std::max(fn->size, offset + wsize);
@@ -356,17 +344,10 @@ int ecall_fs_flush(fuse_ino_t ino) {
     }
 
     for (Chunk& chunk : fn->chunks) {
-        if (chunk.modified) {
-            if (chunk.mem == nullptr) {
-                printf("modified bit is set but memory is not allocated\n");
-                continue;
-            }
-            if (save_chunk(chunk) < 0) {
-                printf("failed to save chunk\n");
-                continue;
-            }
+        if (!flush_chunk(local_cache, chunk)) {
+            printf("failed to flush chunk\n");
+            return EIO;
         }
-        chunk.deallocate();
     }
     if (!save_metadata(*fn))
         return EIO;

@@ -9,18 +9,22 @@ class Chunk {
     Chunk() = default;
     Chunk(const chunk_t* chunk);
     Chunk(const chunk_t& chunk);
+    Chunk(const Chunk& chunk) = delete;
     Chunk(Chunk&& chunk);
     ~Chunk();
 
-    void allocate();
-    void deallocate();
+    Chunk& operator=(const Chunk& chunk) = delete;
     void dump(chunk_t* chunk) const;
 
     UUID uuid;
-    bool modified;
-    char* mem;
     iv_t iv;
     tag_t tag;
+};
+
+class ChunkTable {
+  public:
+    UUID uuid;
+    std::vector<Chunk> entry;
 };
 
 class Filenode : public Inode {

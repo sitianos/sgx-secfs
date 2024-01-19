@@ -17,6 +17,10 @@ static bool encrypt_buffer(
 
     size_t out_len, total_len;
 
+    if (dsize < ssize) {
+        return false;
+    }
+
     mbedtls_cipher_init(&ctx_enc);
     std::unique_ptr<mbedtls_cipher_context_t, decltype(&mbedtls_cipher_free)> ctx_enc_ptr(
         &ctx_enc, mbedtls_cipher_free
@@ -72,6 +76,10 @@ static bool decrypt_buffer(
     mbedtls_cipher_context_t ctx_dec;
 
     size_t out_len, total_len;
+
+    if (dsize < ssize) {
+        return false;
+    }
 
     mbedtls_cipher_init(&ctx_dec);
     std::unique_ptr<mbedtls_cipher_context_t, decltype(&mbedtls_cipher_free)> ctx_dec_ptr(
@@ -259,85 +267,72 @@ bool remove_metadata(const UUID& uuid) {
     return true;
 }
 
-ssize_t load_chunk(Chunk& chunk) {
+static bool load_cache(const Chunk& chunk, std::vector<uint8_t>& data) {
     void* obuf;
     ssize_t size;
     char filename[40];
-    uint8_t iv[12];
     uint8_t aad[16];
     sgx_status_t sgxstat;
 
     chunk.uuid.dump(aad);
     chunk.uuid.unparse(filename);
+    printf("load chunk %s\n", filename);
 
     sgxstat = ocall_load_file(filename, &obuf, &size);
     if (sgxstat != SGX_SUCCESS) {
         printf("SGX Error in %s(): (0x%4x) ", __func__);
         print_sgx_err(sgxstat);
-        return -1;
+        return false;
     }
     if (size < 0) {
         printf("failed to fetch chunk\n");
-        return -1;
+        return false;
     }
 
-    chunk.allocate();
+    data.resize(CHUNKSIZE);
 
     // memcpy(chunk.mem, obuf, CHUNKSIZE);
 
     if (!decrypt_buffer(
-            chunk.iv, sizeof(iv_t), aad, sizeof(aad), (uint8_t*)obuf, size, (uint8_t*)chunk.mem,
-            CHUNKSIZE, chunk.tag, sizeof(tag_t)
+            chunk.iv, sizeof(iv_t), aad, sizeof(aad), (uint8_t*)obuf, size, data.data(), CHUNKSIZE,
+            chunk.tag, sizeof(tag_t)
         )) {
         printf("failed to decrypt chunk\n");
-        return -1;
+        return false;
     }
-
-    chunk.modified = false;
-
     ocall_free(obuf);
-    return size;
+    return true;
 }
 
-ssize_t save_chunk(Chunk& chunk) {
-    uint8_t* obuf;
+static bool save_cache(Chunk& chunk, const std::vector<uint8_t>& data) {
     char filename[40];
-    uint8_t iv[12];
     uint8_t aad[16];
     sgx_status_t sgxstat;
-
-    try {
-        obuf = new uint8_t[CHUNKSIZE];
-    } catch (std::exception& e) {
-        printf("%s\n", e.what());
-        return -1;
-    }
+    std::unique_ptr<uint8_t[]> obuf = std::make_unique<uint8_t[]>(CHUNKSIZE);
 
     sgx_read_rand(chunk.iv, sizeof(iv_t));
-
-    // encryption here
     chunk.uuid.dump(aad);
+
     if (!encrypt_buffer(
-            chunk.iv, sizeof(iv_t), aad, sizeof(aad), (uint8_t*)chunk.mem, CHUNKSIZE, obuf,
+            chunk.iv, sizeof(iv_t), aad, sizeof(aad), data.data(), data.size(), obuf.get(),
             CHUNKSIZE, chunk.tag, sizeof(tag_t)
         )) {
         printf("filaed to encrypt chunk\n");
-        return -1;
+        return false;
     }
     chunk.uuid.unparse(filename);
+    printf("save chunk %s\n", filename);
 
     // memcpy(obuf, chunk.mem, CHUNKSIZE);
 
-    sgxstat = ocall_save_file(filename, obuf, CHUNKSIZE);
+    sgxstat = ocall_save_file(filename, obuf.get(), CHUNKSIZE);
     if (sgxstat != SGX_SUCCESS) {
         printf("SGX Error in %s(): (0x%4x) ", __func__);
         print_sgx_err(sgxstat);
-        return -1;
+        return false;
     }
-    chunk.modified = false;
 
-    delete[] obuf;
-    return CHUNKSIZE;
+    return true;
 }
 
 bool remove_chunk(const UUID& uuid) {
@@ -355,5 +350,71 @@ bool remove_chunk(const UUID& uuid) {
     if (err) {
         return false;
     }
+    return true;
+}
+
+ChunkStore::iterator load_chunk(ChunkStore& store, std::shared_ptr<Filenode> fn, size_t chunk_idx) {
+    ChunkStore::iterator iter;
+    ChunkCache cache;
+
+    iter = store.findbykey(fn->chunks[chunk_idx].uuid);
+    if (iter == store.end()) {
+        cache.modified = false;
+        cache.filenode = fn;
+        cache.chunk_idx = chunk_idx;
+
+        if (!load_cache(fn->chunks[chunk_idx], cache.data)) {
+            return store.end();
+        }
+        iter = store.insert(store.end(), std::move(cache));
+        if (store.size() > MAX_CACHE_NUM) {
+            ChunkCache old_cache = std::move(store.front());
+            if (!save_cache(old_cache.chunk(), old_cache.data)) {
+                return iter;
+            }
+            store.pop_front();
+        }
+    } else {
+        cache = std::move(*iter);
+        iter = store.insert(store.end(), std::move(cache));
+    }
+    return iter;
+}
+
+ChunkStore::iterator save_chunk(ChunkStore& store, std::shared_ptr<Filenode> fn, size_t chunk_idx) {
+    ChunkStore::iterator iter;
+    ChunkCache cache;
+
+    cache.filenode = fn;
+    cache.chunk_idx = chunk_idx;
+    cache.data.resize(CHUNKSIZE);
+
+    iter = store.insert(store.end(), std::move(cache));
+    if (store.size() > MAX_CACHE_NUM) {
+        ChunkCache old_cache = std::move(store.front());
+        if (!save_cache(old_cache.chunk(), old_cache.data)) {
+            return iter;
+        }
+        store.pop_front();
+    }
+    return iter;
+}
+
+bool flush_chunk(ChunkStore& store, Chunk& chunk) {
+    ChunkStore::iterator cache_iter;
+
+    cache_iter = store.findbykey(chunk.uuid);
+    if (cache_iter == store.end()) {
+        return true;
+    }
+
+    ChunkCache& cache = *cache_iter;
+
+    if (cache.modified) {
+        if (!save_cache(chunk, cache.data)) {
+            return false;
+        }
+    }
+    store.erasebykey(chunk.uuid);
     return true;
 }

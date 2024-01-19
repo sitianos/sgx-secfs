@@ -21,8 +21,8 @@ UUID& UUID::operator=(const UUID& uuid) {
     return *this;
 }
 
-bool UUID::operator==(const UUID& uuid) {
-    return std::memcpy(data, uuid.data, sizeof(data)) == 0;
+bool UUID::operator==(const UUID& uuid) const {
+    return std::memcmp(data, uuid.data, sizeof(data)) == 0;
 }
 
 void UUID::load(const uint8_t* in) {
@@ -54,5 +54,6 @@ UUID UUID::gen_rand() {
 }
 
 size_t std::hash<UUID>::operator()(const UUID& uid) const {
-    return *((size_t*)uid.data) + *((size_t*)&uid.data[8]);
+    return *(reinterpret_cast<const size_t*>(uid.data)) +
+           *(reinterpret_cast<const size_t*>(&uid.data[8]));
 }

@@ -46,7 +46,7 @@ size_t Filenode::nlink() const {
     return 1;
 }
 
-Chunk::Chunk(const chunk_t* chunk) : uuid(chunk->uuid), modified(false), mem(nullptr) {
+Chunk::Chunk(const chunk_t* chunk) : uuid(chunk->uuid) {
     memcpy(iv, chunk->iv, sizeof(iv_t));
     memcpy(tag, chunk->tag, sizeof(tag_t));
 }
@@ -54,28 +54,12 @@ Chunk::Chunk(const chunk_t* chunk) : uuid(chunk->uuid), modified(false), mem(nul
 Chunk::Chunk(const chunk_t& chunk) : Chunk(&chunk) {
 }
 
-Chunk::Chunk(Chunk&& chunk) : uuid(chunk.uuid), modified(chunk.modified), mem(chunk.mem) {
-    chunk.mem = nullptr;
+Chunk::Chunk(Chunk&& chunk) : uuid(chunk.uuid) {
     memcpy(iv, chunk.iv, sizeof(iv_t));
     memcpy(tag, chunk.tag, sizeof(tag_t));
 }
 
 Chunk::~Chunk() {
-    if (mem)
-        delete[] mem;
-}
-
-void Chunk::allocate() {
-    if (mem == nullptr) {
-        mem = new char[CHUNKSIZE];
-    }
-}
-
-void Chunk::deallocate() {
-    if (mem) {
-        delete[] mem;
-        mem = nullptr;
-    }
 }
 
 void Chunk::dump(chunk_t* chunk) const {
