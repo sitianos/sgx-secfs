@@ -29,9 +29,9 @@ CXXFLAGS := $(SGX_COMMON_CXXFLAGS) $(SGX_APP_CFLAGS) $(INCLUDES)
 LDFLAGS := -L$(SGX_LIBRARY_PATH) $(Urts_LIBS) $(LIBS)
 
 OBJ_DIR := $(BUILD_DIR)/app
-objs := main.o cli.o fuse_operations.o volume.o enclave.o ocall.o backend/local.o
+objs := main.o cli.o fuse_utils.o fuse_operations.o volume.o enclave.o ocall.o backend/local.o
 build_objs := $(addprefix $(OBJ_DIR)/, $(objs))
-main_objs := main.o fuse_operations.o volume.o enclave.o ocall.o backend/local.o
+main_objs := main.o fuse_utils.o fuse_operations.o volume.o enclave.o ocall.o backend/local.o
 cli_objs := cli.o volume.o enclave.o ocall.o backend/local.o
 exec := $(BIN_DIR)/secfs $(BIN_DIR)/secfs_cli
 

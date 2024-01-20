@@ -142,6 +142,7 @@ int print_hex(const void* bytes, size_t len) {
     return 0;
 }
 
+#if ENABLE_DEBUG_PRINT
 int printf(const char* fmt, ...) {
     const size_t bufsize = 1024;
     char buf[bufsize] = {'\0'};
@@ -156,6 +157,7 @@ int printf(const char* fmt, ...) {
 int print_sgx_err(sgx_status_t sgxstat) {
     ocall_print_sgx_error(sgxstat);
 }
+#endif
 
 bool load_metadata(Metadata& metadata) {
     void* obuf;
@@ -368,15 +370,15 @@ ChunkStore::iterator load_chunk(ChunkStore& store, std::shared_ptr<Filenode> fn,
         }
         iter = store.insert(store.end(), std::move(cache));
         if (store.size() > MAX_CACHE_NUM) {
-            ChunkCache old_cache = std::move(store.front());
+            ChunkCache old_cache = store.get_pop_front();
+            printf("idx=%3ld ", old_cache.chunk_idx);
             if (!save_cache(old_cache.chunk(), old_cache.data)) {
+                printf("failed to save old cache\n");
                 return iter;
             }
-            store.pop_front();
         }
     } else {
-        cache = std::move(*iter);
-        iter = store.insert(store.end(), std::move(cache));
+        iter = store.insert(store.end(), std::move(*iter));
     }
     return iter;
 }
@@ -391,11 +393,12 @@ ChunkStore::iterator save_chunk(ChunkStore& store, std::shared_ptr<Filenode> fn,
 
     iter = store.insert(store.end(), std::move(cache));
     if (store.size() > MAX_CACHE_NUM) {
-        ChunkCache old_cache = std::move(store.front());
+        ChunkCache old_cache = store.get_pop_front();
+        printf("idx=%4ld old_idx=%4ld ", chunk_idx, old_cache.chunk_idx);
         if (!save_cache(old_cache.chunk(), old_cache.data)) {
+            printf("failed to save old cache\n");
             return iter;
         }
-        store.pop_front();
     }
     return iter;
 }

@@ -8,6 +8,7 @@
 
 #include <list>
 #include <memory>
+#include <mutex>
 #include <unordered_map>
 #include <vector>
 
@@ -29,8 +30,10 @@ class ChunkCache {
     bool modified;
     std::shared_ptr<Filenode> filenode;
     size_t chunk_idx;
-    // ChunkCache(const ChunkCache& cache) = delete;
-    // ChunkCache& operator=(const ChunkCache& cache) = delete;
+    ChunkCache() = default;
+    ChunkCache(ChunkCache&& cache) = default;
+    ChunkCache(const ChunkCache& cache) = delete;
+    ChunkCache& operator=(const ChunkCache& cache) = delete;
     inline size_t size() {
         return data.size();
     }
@@ -45,10 +48,12 @@ class ChunkCache {
 class ChunkStore : public std::list<ChunkCache> {
   private:
     std::unordered_map<UUID, iterator> _map;
+    std::mutex mutex;
 
   public:
     void push_back(ChunkCache&& cache);
     void pop_front();
+    ChunkCache get_pop_front();
     iterator insert(iterator iter, ChunkCache&& cache);
     iterator erase(iterator iter);
 

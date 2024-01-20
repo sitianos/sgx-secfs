@@ -10,6 +10,10 @@
 extern "C" {
 #endif
 
+#ifndef ENABLE_DEBUG_PRINT
+#define ENABLE_DEBUG_PRINT (0)
+#endif
+
 #ifndef ENABLE_ENCRYPTION
 #define ENABLE_ENCRYPTION (1)
 #endif
@@ -19,7 +23,7 @@ extern "C" {
 #endif
 
 #ifndef MAX_CACHE_NUM
-#define MAX_CACHE_NUM (4)
+#define MAX_CACHE_NUM (8)
 #endif
 
 #ifndef CHUNKSIZE

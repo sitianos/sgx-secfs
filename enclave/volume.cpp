@@ -23,6 +23,15 @@ void ChunkStore::pop_front() {
     std::list<ChunkCache>::pop_front();
 }
 
+ChunkCache ChunkStore::get_pop_front() {
+    std::lock_guard<std::mutex> lock(mutex);
+    ChunkCache cache = std::move(std::list<ChunkCache>::front());
+    assert(_map.find(cache._uuid)->second == std::list<ChunkCache>::begin());
+    _map.erase(cache._uuid);
+    std::list<ChunkCache>::pop_front();
+    return cache;
+}
+
 ChunkStore::iterator ChunkStore::insert(iterator iter, ChunkCache&& cache) {
     UUID& uuid = cache.chunk().uuid;
     decltype(_map)::iterator chunk_iter = _map.find(uuid);

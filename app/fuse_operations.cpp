@@ -20,6 +20,10 @@ static void copy_statbuf(struct stat& st, const struct stat_buffer_t& statbuf) {
 void secfs_init(void* userdata, struct fuse_conn_info* conn) {
     (void)userdata;
     (void)conn;
+    if (secfs::global_vol.options.writeback && conn->capable & FUSE_CAP_WRITEBACK_CACHE) {
+        printf("writeback enabled\n");
+        conn->want |= FUSE_CAP_WRITEBACK_CACHE;
+    }
 }
 
 void secfs_lookup(fuse_req_t req, fuse_ino_t parent, const char* name) {
@@ -29,7 +33,6 @@ void secfs_lookup(fuse_req_t req, fuse_ino_t parent, const char* name) {
     int err;
     struct stat_buffer_t statbuf;
 
-    fuse_log(FUSE_LOG_DEBUG, "lookup(parent=%ld, name=%s)\n", parent, name);
     sgxstat = ecall_fs_lookup(secfs::global_vol.eid, &err, parent, name, &ino, &statbuf);
     if (sgxstat != SGX_SUCCESS) {
         std::cerr << enclave_err_msg(sgxstat) << std::endl;
@@ -41,7 +44,10 @@ void secfs_lookup(fuse_req_t req, fuse_ino_t parent, const char* name) {
         ep.attr_timeout = ep.entry_timeout = 10.0;
         copy_statbuf(ep.attr, statbuf);
         fuse_reply_entry(req, &ep);
-        fuse_log(FUSE_LOG_DEBUG, "    lookup(parent=%ld, name=%s) -> ino=%ld\n", parent, name, ino);
+        if (secfs::global_vol.options.debug)
+            fuse_log(
+                FUSE_LOG_DEBUG, "    lookup(parent=%ld, name=%s) -> ino=%ld\n", parent, name, ino
+            );
     }
 }
 
@@ -50,14 +56,15 @@ void secfs_forget(fuse_req_t req, fuse_ino_t ino, uint64_t nlookup) {
     sgx_status_t sgxstat;
     int remain;
 
-    fuse_log(FUSE_LOG_DEBUG, "forget(ino=%ld, nlookup=%ld)\n", ino, nlookup);
     sgxstat = ecall_fs_forget(secfs::global_vol.eid, &remain, ino, nlookup);
     if (sgxstat != SGX_SUCCESS) {
         std::cerr << enclave_err_msg(sgxstat) << std::endl;
     } else {
-        fuse_log(
-            FUSE_LOG_DEBUG, "    forget(ino=%ld, nlookup=%ld) -> remain=%d\n", ino, nlookup, remain
-        );
+        if (secfs::global_vol.options.debug)
+            fuse_log(
+                FUSE_LOG_DEBUG, "    forget(ino=%ld, nlookup=%ld) -> remain=%d\n", ino, nlookup,
+                remain
+            );
     }
     fuse_reply_none(req);
 }
@@ -77,6 +84,46 @@ void secfs_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info* fi) {
         fuse_reply_err(req, err);
     } else {
         copy_statbuf(st, statbuf);
+        fuse_reply_attr(req, &st, 1.0);
+    }
+}
+
+void secfs_setattr(
+    fuse_req_t req, fuse_ino_t ino, struct stat* attr, int to_set, struct fuse_file_info* fi
+) {
+    (void)fi;
+    sgx_status_t sgxstat;
+    int err;
+    struct stat_buffer_t statbuf;
+    struct stat st;
+
+    sgxstat = ecall_fs_getattr(secfs::global_vol.eid, &err, ino, &statbuf);
+    if (sgxstat != SGX_SUCCESS) {
+        std::cerr << enclave_err_msg(sgxstat) << std::endl;
+        fuse_reply_err(req, ENOENT);
+    } else if (err) {
+        fuse_reply_err(req, err);
+    } else {
+        copy_statbuf(st, statbuf);
+        if (to_set & (FUSE_SET_ATTR_ATIME | FUSE_SET_ATTR_MTIME)) {
+            printf("mtime is modified\n");
+            struct timespec tv[2];
+
+            st.st_atim.tv_sec = 0;
+            st.st_mtim.tv_sec = 0;
+            st.st_atim.tv_nsec = UTIME_OMIT;
+            st.st_mtim.tv_nsec = UTIME_OMIT;
+
+            if (to_set & FUSE_SET_ATTR_ATIME_NOW)
+                st.st_atim.tv_nsec = UTIME_NOW;
+            else if (to_set & FUSE_SET_ATTR_ATIME)
+                st.st_atim = attr->st_atim;
+
+            if (to_set & FUSE_SET_ATTR_MTIME_NOW)
+                st.st_mtim.tv_nsec = UTIME_NOW;
+            else if (to_set & FUSE_SET_ATTR_MTIME)
+                st.st_mtim = attr->st_mtim;
+        }
         fuse_reply_attr(req, &st, 1.0);
     }
 }
@@ -147,7 +194,8 @@ void secfs_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct f
     (void)fi;
     sgx_status_t sgxstat;
     int err;
-    fuse_log(FUSE_LOG_DEBUG, "read(ino=%ld, size=%ld, off=%ld)\n", ino, size, off);
+    if (secfs::global_vol.options.debug)
+        fuse_log(FUSE_LOG_DEBUG, "read(ino=%ld, size=%ld, off=%ld)\n", ino, size, off);
 
     char* buf = static_cast<char*>(malloc(size));
     size_t rsize = size;
@@ -172,7 +220,8 @@ void secfs_write(
     (void)fi;
     sgx_status_t sgxstat;
     int err;
-    fuse_log(FUSE_LOG_DEBUG, "write(ino=%ld, size=%ld, off=%ld)\n", ino, size, off);
+    if (secfs::global_vol.options.debug)
+        fuse_log(FUSE_LOG_DEBUG, "write(ino=%ld, size=%ld, off=%ld)\n", ino, size, off);
 
     size_t wsize = size;
 
@@ -226,7 +275,8 @@ void secfs_opendir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info* fi) {
         std::vector<dirent_t>* dirvec = new std::vector<dirent_t>(dirp, dirp + count);
         fi->fh = (uint64_t)dirvec;
 
-        fuse_log(FUSE_LOG_DEBUG, "opendir(ino=%ld get %ld entries)\n", ino, dirvec->size());
+        if (secfs::global_vol.options.debug)
+            fuse_log(FUSE_LOG_DEBUG, "opendir(ino=%ld get %ld entries)\n", ino, dirvec->size());
         fuse_reply_open(req, fi);
     }
     free(dirp);
@@ -235,7 +285,8 @@ void secfs_opendir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info* fi) {
 void secfs_readdir(
     fuse_req_t req, fuse_ino_t ino, size_t size, off_t offset, struct fuse_file_info* fi
 ) {
-    fuse_log(FUSE_LOG_DEBUG, "readdir(ino=%ld, size=%ld, offset=%ld)\n", ino, size, offset);
+    if (secfs::global_vol.options.debug)
+        fuse_log(FUSE_LOG_DEBUG, "readdir(ino=%ld, size=%ld, offset=%ld)\n", ino, size, offset);
     size_t rem = size;
     size_t entsize;
     char* buf = (char*)calloc(1, size);
@@ -253,10 +304,11 @@ void secfs_readdir(
         }
         p += entsize;
         rem -= entsize;
-        fuse_log(
-            FUSE_LOG_DEBUG, "    add dent %s ino=%4ld type=%03o entisze=%ld remain=%ld\n",
-            dent.name, dent.ino, dent.type, entsize, rem
-        );
+        if (secfs::global_vol.options.debug)
+            fuse_log(
+                FUSE_LOG_DEBUG, "    add dent %s ino=%4ld type=%03o entisze=%ld remain=%ld\n",
+                dent.name, dent.ino, dent.type, entsize, rem
+            );
     }
 
     fuse_reply_buf(req, buf, size - rem);

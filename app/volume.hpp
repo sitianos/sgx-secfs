@@ -30,13 +30,17 @@ class Volume {
   public:
     Volume(const Volume& vol) = delete;
     Volume(Volume&& vol) = delete;
+    ~Volume();
     Volume& operator=(const Volume& vol) = delete;
     Volume& operator=(Volume&& vol) = delete;
     sgx_enclave_id_t eid;
     mbedtls_ecp_keypair pubkey;
     mbedtls_ecp_keypair key;
+    struct {
+        int writeback;
+        int debug;
+    } options;
 
-    ~Volume();
     StorageAPI& get_api_instance();
     inline bool loaded() {
         return is_loaded;
