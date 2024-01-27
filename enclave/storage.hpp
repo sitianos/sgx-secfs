@@ -26,6 +26,10 @@ ChunkStore::iterator load_chunk(ChunkStore& store, std::shared_ptr<Filenode> fn,
 
 ChunkStore::iterator save_chunk(ChunkStore& store, std::shared_ptr<Filenode> fn, size_t chunk_idx);
 
+bool load_chunk(ChunkStore& store, ChunkCache& cache);
+
+bool save_chunk(ChunkStore& store, ChunkCache&& cache);
+
 bool flush_chunk(ChunkStore& store, Chunk& chunk);
 
 bool remove_chunk(const UUID& uuid);

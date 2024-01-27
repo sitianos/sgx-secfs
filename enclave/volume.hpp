@@ -28,21 +28,23 @@ class ChunkCache {
   public:
     std::vector<uint8_t> data;
     bool modified;
-    std::shared_ptr<Filenode> filenode;
+    std::weak_ptr<Filenode> filenode;
     size_t chunk_idx;
     ChunkCache() = default;
+    ChunkCache(size_t size, std::shared_ptr<Filenode>& fn, size_t idx);
     ChunkCache(ChunkCache&& cache) = default;
     ChunkCache(const ChunkCache& cache) = delete;
+    ChunkCache& operator=(ChunkCache&& cache) = default;
     ChunkCache& operator=(const ChunkCache& cache) = delete;
     inline size_t size() {
         return data.size();
     }
-    inline Chunk& chunk() {
-        return filenode->chunks[chunk_idx];
+    inline bool expired() {
+        return filenode.expired();
     }
-    // inline uint8_t* data() {
-    //     return data.data();
-    // }
+    inline Chunk& chunk() {
+        return filenode.lock()->chunks[chunk_idx];
+    }
 };
 
 class ChunkStore : public std::list<ChunkCache> {
@@ -53,7 +55,9 @@ class ChunkStore : public std::list<ChunkCache> {
   public:
     void push_back(ChunkCache&& cache);
     void pop_front();
+    iterator push_get_back(ChunkCache&& cache);
     ChunkCache get_pop_front();
+    ChunkCache get_erase(iterator iter);
     iterator insert(iterator iter, ChunkCache&& cache);
     iterator erase(iterator iter);
 

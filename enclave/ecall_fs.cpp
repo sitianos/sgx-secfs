@@ -251,10 +251,10 @@ int ecall_fs_read(fuse_ino_t ino, char* buf, off_t offset, size_t* size) {
     size_t chunk_st = offset / CHUNKSIZE;
     size_t chunk_en = (offset + *size + CHUNKSIZE - 1) / CHUNKSIZE;
     if (chunk_en > fn->chunks.size()) {
-        printf("filesize is larger than local chunks\n");
         printf(
-            "chunk_en=%ld, fn->chunks.size=%ld fn->size=%ld\n", chunk_en, fn->chunks.size(),
-            fn->size
+            "filesize is larger than local chunks\n"
+            "chunk_en=%ld, fn->chunks.size=%ld fn->size=%ld\n",
+            chunk_en, fn->chunks.size(), fn->size
         );
         return EINVAL;
     }
@@ -266,16 +266,18 @@ int ecall_fs_read(fuse_ino_t ino, char* buf, off_t offset, size_t* size) {
         off_t off_st = (idx == chunk_st) ? offset % CHUNKSIZE : 0;
         off_t off_en = (idx == chunk_en - 1) ? (offset + *size - 1) % CHUNKSIZE + 1 : CHUNKSIZE;
 
-        decltype(local_cache)::iterator cache_iter = load_chunk(local_cache, fn, idx);
-
-        if (cache_iter == local_cache.end()) {
-            printf("failed to load chunk to local cache\n");
+        ChunkCache cache(CHUNKSIZE, fn, idx);
+        if (!load_chunk(local_cache, cache)) {
+            printf("failed to load chunk idx = %ld\n", idx);
             return EINVAL;
         }
-        ChunkCache& cache = *cache_iter;
 
         memcpy_verw_s(buf + wsize, *size - wsize, cache.data.data() + off_st, off_en - off_st);
         wsize += off_en - off_st;
+        if (!save_chunk(local_cache, std::move(cache))) {
+            printf("failed to save chunk\n");
+            return EINVAL;
+        }
     }
     if (wsize != *size) {
         printf("write size and read size does not match");
@@ -297,39 +299,50 @@ int ecall_fs_write(fuse_ino_t ino, const char* buf, off_t offset, size_t* size) 
     size_t chunk_st = offset / CHUNKSIZE;
     size_t chunk_en = (offset + *size + CHUNKSIZE - 1) / CHUNKSIZE;
 
+    fn->mutex.lock();
     size_t prev_size = fn->chunks.size();
-    if (chunk_en > fn->chunks.size()) {
+    off_t last_surplus = (fn->size + CHUNKSIZE - 1) % CHUNKSIZE;
+    if (chunk_en > prev_size) {
         fn->chunks.resize(chunk_en);
         for (size_t idx = prev_size; idx < chunk_en; idx++) {
             fn->chunks[idx].uuid = UUID::gen_rand();
         }
     }
+    fn->mutex.unlock();
+
     size_t wsize = 0;
     for (size_t idx = chunk_st; idx < chunk_en; idx++) {
         off_t off_st = (idx == chunk_st) ? offset % CHUNKSIZE : 0;
         off_t off_en = (idx == chunk_en - 1) ? (offset + *size - 1) % CHUNKSIZE + 1 : CHUNKSIZE;
-        off_t off_chunk_en = (idx == prev_size - 1) ? fn->size % CHUNKSIZE : CHUNKSIZE;
+        off_t off_chunk_en = (idx == prev_size - 1) ? last_surplus : CHUNKSIZE;
 
-        decltype(local_cache)::iterator cache_iter;
+        ChunkCache cache(CHUNKSIZE, fn, idx);
 
         if (idx < prev_size && (off_st != 0 || off_en != off_chunk_en)) {
-            cache_iter = load_chunk(local_cache, fn, idx);
-
-            if (cache_iter == local_cache.end()) {
+            if (!load_chunk(local_cache, cache)) {
                 printf("failed to load chunk for writing\n");
-                return EINVAL;
+                break;
             }
-        } else {
-            cache_iter = save_chunk(local_cache, fn, idx);
         }
-        ChunkCache& cache = *cache_iter;
+        if (cache.data.size() != CHUNKSIZE) {
+            printf("idx=%ld size is not chunk size %ld\n", idx, cache.data.size());
+        }
+        if (cache.chunk_idx != idx) {
+            printf("idx=%ld idx does not match %ld\n", idx, cache.chunk_idx);
+        }
 
         memcpy_verw_s(cache.data.data() + off_st, CHUNKSIZE - off_st, buf + wsize, off_en - off_st);
         cache.modified = true;
         wsize += off_en - off_st;
+        if (!save_chunk(local_cache, std::move(cache))) {
+            printf("failed to save chunk idx = %ld\n", idx);
+            return EINVAL;
+        }
     }
     *size = wsize;
+    fn->mutex.lock();
     fn->size = std::max(fn->size, offset + wsize);
+    fn->mutex.unlock();
     return 0;
 }
 

@@ -13,7 +13,18 @@ RUN chmod +x sgx_linux_x64_sdk_2.22.100.3.bin
 RUN ./sgx_linux_x64_sdk_2.22.100.3.bin --prefix /opt/intel
 ENV SGX_SDK=/opt/intel/sgxsdk
 
-RUN apt update && apt install -y pkg-config uuid-dev libfuse3-dev libmbedtls-dev nlohmann-json3-dev nano fio xxd
+RUN apt update && apt install -y pkg-config git meson uuid-dev libmbedtls-dev nlohmann-json3-dev nano fio xxd libc-bin screen
+
+WORKDIR /tmp
+RUN git clone https://github.com/libfuse/libfuse.git
+RUN mkdir /tmp/libfuse/build
+WORKDIR /tmp/libfuse/build
+RUN meson setup .. && ninja && ninja install
+
 WORKDIR /app
 COPY . .
-RUN make SGX_MODE=HW
+RUN make BUILD_DIR=/build SGX_DEBUG=0 SGX_MODE=HW Enclave_CFLAGS="-DENABLE_DEBUG_PRINT=0 -DMAX_CACHE_NUM=1024 -DCHUNKSIZE=4096"
+ENV PATH $PATH:/build/bin
+WORKDIR /root
+COPY sample/* .
+RUN mkdir vol mnt

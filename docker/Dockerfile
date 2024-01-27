@@ -51,5 +51,9 @@ CMD ["/bin/bash"]
 
 FROM sgx as secfs
 
-RUN apt update && apt install -y uuid-dev libfuse3-dev libmbedtls-dev nlohmann-json3-dev
+RUN apt update && apt install -y meson uuid-dev libmbedtls-dev nlohmann-json3-dev
+
+WORKDIR /tmp
+RUN git clone https://github.com/libfuse/libfuse.git
+
 WORKDIR /app

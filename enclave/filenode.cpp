@@ -54,12 +54,19 @@ Chunk::Chunk(const chunk_t* chunk) : uuid(chunk->uuid) {
 Chunk::Chunk(const chunk_t& chunk) : Chunk(&chunk) {
 }
 
-Chunk::Chunk(Chunk&& chunk) : uuid(chunk.uuid) {
+Chunk::Chunk(const Chunk& chunk) : uuid(chunk.uuid) {
     memcpy(iv, chunk.iv, sizeof(iv_t));
     memcpy(tag, chunk.tag, sizeof(tag_t));
 }
 
 Chunk::~Chunk() {
+}
+
+Chunk& Chunk::operator=(const Chunk& chunk) {
+    uuid = chunk.uuid;
+    memcpy(iv, chunk.iv, sizeof(iv_t));
+    memcpy(tag, chunk.tag, sizeof(tag_t));
+    return *this;
 }
 
 void Chunk::dump(chunk_t* chunk) const {

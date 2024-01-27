@@ -2,6 +2,7 @@
 
 #include "metadata.hpp"
 
+#include <mutex>
 #include <vector>
 
 class Chunk {
@@ -9,11 +10,10 @@ class Chunk {
     Chunk() = default;
     Chunk(const chunk_t* chunk);
     Chunk(const chunk_t& chunk);
-    Chunk(const Chunk& chunk) = delete;
-    Chunk(Chunk&& chunk);
+    Chunk(const Chunk& chunk);
     ~Chunk();
 
-    Chunk& operator=(const Chunk& chunk) = delete;
+    Chunk& operator=(const Chunk& chunk);
     void dump(chunk_t* chunk) const;
 
     UUID uuid;
@@ -40,4 +40,5 @@ class Filenode : public Inode {
 
     size_t size;
     std::vector<Chunk> chunks;
+    std::mutex mutex;
 };

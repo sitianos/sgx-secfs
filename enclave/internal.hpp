@@ -11,7 +11,7 @@ extern "C" {
 #endif
 
 #ifndef ENABLE_DEBUG_PRINT
-#define ENABLE_DEBUG_PRINT (0)
+#define ENABLE_DEBUG_PRINT (1)
 #endif
 
 #ifndef ENABLE_ENCRYPTION

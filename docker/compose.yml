@@ -21,5 +21,7 @@ services:
     tty: true
     environment:
      - LD_LIBRARY_PATH=/opt/intel/sgxsdk/lib64
+     - BUILD_DIR=/build
+     - PATH=$PATH:/build/bin
     command:
-      bash
+      sh -c "mkdir /tmp/libfuse/build && cd /tmp/libfuse/build && meson setup .. && ninja && ninja install && exec bash"
