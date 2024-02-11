@@ -71,3 +71,7 @@ void secfs_create(
     fuse_req_t req, fuse_ino_t parent, const char* name, mode_t mode, struct fuse_file_info* fi
 );
 }
+
+void secfs_fallocate(
+    fuse_req_t req, fuse_ino_t ino, int mode, off_t offset, off_t length, struct fuse_file_info* fi
+);

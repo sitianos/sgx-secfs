@@ -160,7 +160,7 @@ int ecall_fs_unlink(fuse_ino_t parent, const char* name) {
                 return EACCES;
             }
             for (Chunk& chunk : file_p->chunks) {
-                if (!remove_chunk(chunk.uuid)) {
+                if (chunk.uuid != UUID() && !remove_chunk(chunk.uuid)) {
                     printf("failed to remove chunk\n");
                 }
             }
@@ -227,7 +227,7 @@ int ecall_fs_open(fuse_ino_t ino, open_flag_t flags) {
     // here is permission check
     if (flags & OF_TRUNC) {
         for (Chunk& chunk : fn->chunks) {
-            if (!remove_chunk(chunk.uuid)) {
+            if (chunk.uuid != UUID() && !remove_chunk(chunk.uuid)) {
                 printf("failed to remove chunk\n");
             }
         }
@@ -260,13 +260,20 @@ int ecall_fs_read(fuse_ino_t ino, char* buf, off_t offset, size_t* size) {
     }
     chunk_en = std::min(chunk_en, fn->chunks.size());
     size_t wsize = 0;
+    sizeof(Chunk);
 
     for (size_t idx = chunk_st; idx < chunk_en; idx++) {
         Chunk& chunk = fn->chunks[idx];
         off_t off_st = (idx == chunk_st) ? offset % CHUNKSIZE : 0;
         off_t off_en = (idx == chunk_en - 1) ? (offset + *size - 1) % CHUNKSIZE + 1 : CHUNKSIZE;
 
+        if (fn->chunks[idx].uuid == UUID()) {
+            memset(buf + wsize, 0, off_en - off_st);
+            wsize += off_en - off_st;
+            continue;
+        }
         ChunkCache cache(CHUNKSIZE, fn, idx);
+
         if (!load_chunk(local_cache, cache)) {
             printf("failed to load chunk idx = %ld\n", idx);
             return EINVAL;
@@ -304,9 +311,6 @@ int ecall_fs_write(fuse_ino_t ino, const char* buf, off_t offset, size_t* size) 
     off_t last_surplus = (fn->size + CHUNKSIZE - 1) % CHUNKSIZE;
     if (chunk_en > prev_size) {
         fn->chunks.resize(chunk_en);
-        for (size_t idx = prev_size; idx < chunk_en; idx++) {
-            fn->chunks[idx].uuid = UUID::gen_rand();
-        }
     }
     fn->mutex.unlock();
 
@@ -318,10 +322,11 @@ int ecall_fs_write(fuse_ino_t ino, const char* buf, off_t offset, size_t* size) 
 
         ChunkCache cache(CHUNKSIZE, fn, idx);
 
-        if (idx < prev_size && (off_st != 0 || off_en != off_chunk_en)) {
+        if (fn->chunks[idx].uuid == UUID()) {
+            fn->chunks[idx].uuid = UUID::gen_rand();
+        } else if ((off_st != 0 || off_en != off_chunk_en)) {
             if (!load_chunk(local_cache, cache)) {
                 printf("failed to load chunk for writing\n");
-                break;
             }
         }
         if (cache.data.size() != CHUNKSIZE) {
@@ -449,5 +454,28 @@ int ecall_fs_create(
     save_metadata(*superinfo);
     save_metadata(*new_fn);
 
+    return 0;
+}
+
+int ecall_fs_fallocate(fuse_ino_t ino, int mode, off_t offset, size_t length){
+    decltype(inode_map)::iterator iter = inode_map.find(ino);
+    if (iter == inode_map.end()) {
+        return EACCES;
+    }
+    std::shared_ptr<Filenode> fn;
+    if (!(fn = std::dynamic_pointer_cast<Filenode>(iter->second))) {
+        return EACCES;
+    }
+    // here is permission check
+    size_t chunk_st = offset / CHUNKSIZE;
+    size_t chunk_en = (offset + length + CHUNKSIZE - 1) / CHUNKSIZE;
+
+    fn->mutex.lock();
+    size_t prev_size = fn->chunks.size();
+    if (chunk_en > prev_size) {
+        fn->chunks.resize(chunk_en);
+    }
+    fn->size = std::max(fn->size, offset + length);
+    fn->mutex.unlock();
     return 0;
 }

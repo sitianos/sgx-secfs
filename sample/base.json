@@ -1,10 +1,10 @@
 {
-    "enclave_path": "../build/lib/secfs_enclave.signed.so",
+    "enclave_path": "/build/lib/secfs_enclave.signed.so",
     "key_path": "privkey.pem",
     "public_key_path": "pubkey.pem",
     "storage": {
         "config": {
-            "base_dir": "/app/sample/vol"
+            "base_dir": "/root/vol"
         },
         "type": "local"
     }

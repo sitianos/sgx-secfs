@@ -55,5 +55,8 @@ RUN apt update && apt install -y meson uuid-dev libmbedtls-dev nlohmann-json3-de
 
 WORKDIR /tmp
 RUN git clone https://github.com/libfuse/libfuse.git
+RUN mkdir /tmp/libfuse/build
+WORKDIR /tmp/libfuse/build
+RUN meson setup .. && ninja 
 
 WORKDIR /app

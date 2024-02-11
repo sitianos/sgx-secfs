@@ -101,4 +101,16 @@ ChunkStore::iterator ChunkStore::erasebykey(const UUID& uuid) {
     return iter;
 }
 
+bool ChunkStore::get_erase_by_key(const UUID& uuid, ChunkCache& cache) {
+    std::lock_guard<std::mutex> lock(mutex);
+    decltype(_map)::iterator map_iter = _map.find(uuid);
+    if (map_iter == _map.end()) {
+        return false;
+    }
+    cache = std::move(*map_iter->second);
+    std::list<ChunkCache>::erase(map_iter->second);
+    _map.erase(map_iter);
+    return true;
+}
+
 ChunkStore local_cache;

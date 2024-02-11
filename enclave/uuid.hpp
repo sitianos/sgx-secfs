@@ -11,6 +11,7 @@ class UUID {
 
     UUID& operator=(const UUID& uuid);
     bool operator==(const UUID& uuid) const;
+    bool operator!=(const UUID& uuid) const;
     void load(const uint8_t* in);
     void dump(uint8_t* out) const;
     void unparse(char* out) const;

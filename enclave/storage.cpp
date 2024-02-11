@@ -190,7 +190,6 @@ bool load_metadata(Metadata& metadata) {
     ibuf = new uint8_t[bsize];
     memset(iv, 0, sizeof(iv));
 
-    // decryption here
     if (!decrypt_buffer(
             iv, sizeof(iv), aad, sizeof(aad), static_cast<uint8_t*>(obuf), bsize, ibuf, bsize, tag,
             sizeof(tag)
@@ -297,8 +296,6 @@ static bool load_cache(const Chunk& chunk, std::vector<uint8_t>& data) {
 
     data.resize(CHUNKSIZE);
 
-    // memcpy(chunk.mem, obuf, CHUNKSIZE);
-
     if (!decrypt_buffer(
             chunk.iv, sizeof(iv_t), aad, sizeof(aad), (uint8_t*)obuf, size, data.data(), CHUNKSIZE,
             chunk.tag, sizeof(tag_t)
@@ -316,7 +313,6 @@ static bool save_cache(Chunk& chunk, const std::vector<uint8_t>& data) {
     sgx_status_t sgxstat;
     std::unique_ptr<uint8_t[]> obuf = std::make_unique<uint8_t[]>(CHUNKSIZE);
 
-    // sgx_read_rand(chunk.iv, sizeof(iv_t));
     memset(chunk.iv, 0, sizeof(iv_t));
     chunk.uuid.dump(aad);
     chunk.uuid.unparse(filename);
@@ -328,16 +324,6 @@ static bool save_cache(Chunk& chunk, const std::vector<uint8_t>& data) {
         printf("failed to encrypt chunk %s\n", filename);
         return false;
     }
-    // std::vector<uint8_t> temp(data.size());
-    // if (!decrypt_buffer(
-    //         chunk.iv, sizeof(iv_t), aad, sizeof(aad), obuf.get(), CHUNKSIZE, temp.data(),
-    //         temp.size(), chunk.tag, sizeof(tag_t)
-    //     )) {
-    //     printf("failed to decrypt chunk %s\n", filename);
-    //     abort();
-    //     return false;
-    // }
-    // memcpy(obuf, chunk.mem, CHUNKSIZE);
 
     sgxstat = ocall_save_file(filename, obuf.get(), CHUNKSIZE);
     if (sgxstat != SGX_SUCCESS) {
@@ -349,90 +335,23 @@ static bool save_cache(Chunk& chunk, const std::vector<uint8_t>& data) {
     return true;
 }
 
-// ChunkStore::iterator load_chunk(ChunkStore& store, std::shared_ptr<Filenode> fn, size_t
-// chunk_idx) {
-//     ChunkStore::iterator iter;
-//     ChunkCache cache;
-
-//     iter = store.findbykey(fn->chunks[chunk_idx].uuid);
-//     if (iter == store.end()) {
-//         cache.modified = false;
-//         cache.filenode = fn;
-//         cache.chunk_idx = chunk_idx;
-
-//         if (!load_cache(fn->chunks[chunk_idx], cache.data)) {
-//             return store.end();
-//         }
-//         iter = store.push_get_back(std::move(cache));
-//         if (store.size() > MAX_CACHE_NUM) {
-//             ChunkCache old_cache = store.get_pop_front();
-//             char filename[40];
-//             old_cache.chunk().uuid.unparse(filename);
-//             printf(
-//                 "save chunk %s idx=%4ld old_idx=%4ld\n", filename, chunk_idx, old_cache.chunk_idx
-//             );
-
-//             if (old_cache.modified && !save_cache(old_cache.chunk(), old_cache.data)) {
-//                 printf("failed to save old cache\n");
-//                 return iter;
-//             }
-//         }
-//     } else {
-//         ChunkStore::iterator old_iter = iter;
-//         iter = store.push_get_back(std::move(*old_iter));
-//         store.erase(old_iter);
-//         // iter = store.insert(store.end(), std::move(*iter));
-//     }
-//     return iter;
-// }
-
-// ChunkStore::iterator save_chunk(ChunkStore& store, std::shared_ptr<Filenode> fn, size_t
-// chunk_idx) {
-//     ChunkStore::iterator iter;
-//     ChunkCache cache;
-
-//     cache.filenode = fn;
-//     cache.chunk_idx = chunk_idx;
-//     cache.data.resize(CHUNKSIZE);
-
-//     iter = store.push_get_back(std::move(cache));
-//     size_t lsize;
-//     while ((lsize = store.size()) > MAX_CACHE_NUM) {
-//         // std::lock_guard<std::mutex> lock(test_mutex);
-//         ChunkCache old_cache = store.get_pop_front();
-//         char filename[40];
-//         old_cache.chunk().uuid.unparse(filename);
-//         printf(
-//             "save chunk %s idx=%ld\told_idx=%ld\tremain=%ld\n", filename, chunk_idx,
-//             old_cache.chunk_idx, lsize
-//         );
-//         if (old_cache.modified && !save_cache(old_cache.chunk(), old_cache.data)) {
-//             printf("failed to save old cache\n");
-//             return iter;
-//         }
-//     }
-//     return iter;
-// }
-
 bool load_chunk(ChunkStore& store, ChunkCache& cache) {
-    ChunkStore::iterator iter;
-    iter = store.findbykey(cache.chunk().uuid);
-    if (iter == store.end()) {
+    if (!store.get_erase_by_key(cache.chunk().uuid, cache)) {
         return load_cache(cache.chunk(), cache.data);
-    } else {
-        cache = store.get_erase(iter);
-        return true;
     }
+    return true;
 }
 
 bool save_chunk(ChunkStore& store, ChunkCache&& cache) {
+    char filename[40];
+    cache.chunk().uuid.unparse(filename);
+    printf("push chunk %s\n", filename);
     ChunkStore::iterator iter;
     iter = store.push_get_back(std::move(cache));
     size_t lsize;
     while ((lsize = store.size()) > MAX_CACHE_NUM) {
         // std::lock_guard<std::mutex> lock(test_mutex);
         ChunkCache old_cache = store.get_pop_front();
-        char filename[40];
         old_cache.chunk().uuid.unparse(filename);
         printf(
             "pop chunk %s idx=%ld\told_idx=%ld\tremain=%ld(%ld)\n", filename, cache.chunk_idx,
@@ -442,7 +361,6 @@ bool save_chunk(ChunkStore& store, ChunkCache&& cache) {
             std::shared_ptr<Filenode> fn;
             if (!(fn = old_cache.filenode.lock())) {
                 printf("old cache is expired\n");
-                abort();
                 return false;
             }
             Chunk chunk;

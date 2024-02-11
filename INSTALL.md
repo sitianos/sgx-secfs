@@ -53,7 +53,7 @@ in which
 
 - Create volume with base configuration file
 ```
-# secfs_cli create -n base.json -c volume.json
+# secfs_cli create -c base.json -n volume.json
 ```
 - if secuceeded you can find `volume.json` and some files in storage base directory
 - then you can mount the volume with `volume.json` and mount point

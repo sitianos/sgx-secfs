@@ -63,6 +63,7 @@ class ChunkStore : public std::list<ChunkCache> {
 
     iterator findbykey(const UUID& uuid);
     iterator erasebykey(const UUID& uuid);
+    bool get_erase_by_key(const UUID& uuid, ChunkCache& cache);
 };
 
 extern ChunkStore local_cache;

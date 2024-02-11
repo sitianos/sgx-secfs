@@ -12,6 +12,10 @@ endif
 
 SGX_APP_CFLAGS := -fPIC -Wno-attributes -I$(SGX_SDK)/include
 
+ifeq ($(SGX_SWITCHLESS), 1)
+	SGX_APP_CFLAGS += -DSGX_SWITCHLESS
+endif
+
 ifeq ($(SGX_DEBUG), 1)
 	SGX_APP_CFLAGS += -DDEBUG -UNDEBUG -UEDEBUG
 else ifeq ($(SGX_PRERELEASE), 1)
@@ -20,13 +24,15 @@ else
 	SGX_APP_CFLAGS += -DNDEBUG -UEDEBUG -UDEBUG
 endif
 
+Switchless_LIBS = -Wl,--whole-archive -lsgx_uswitchless -Wl,--no-whole-archive
+
 INCLUDES := $(addprefix -I, . ../include) $(shell pkg-config fuse3 --cflags)
 LIBS := $(shell pkg-config fuse3 --libs) -lmbedtls -lmbedcrypto -luuid
 
 CFLAGS := $(SGX_COMMON_CFLAGS) $(SGX_APP_CFLAGS) $(INCLUDES)
 CXXFLAGS := $(SGX_COMMON_CXXFLAGS) $(SGX_APP_CFLAGS) $(INCLUDES)
 
-LDFLAGS := -L$(SGX_LIBRARY_PATH) $(Urts_LIBS) $(LIBS)
+LDFLAGS := -L$(SGX_LIBRARY_PATH) $(Switchless_LIBS) $(Urts_LIBS) $(LIBS)
 
 OBJ_DIR := $(BUILD_DIR)/app
 objs := main.o cli.o fuse_utils.o fuse_operations.o volume.o enclave.o ocall.o backend/local.o

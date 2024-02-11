@@ -24,4 +24,4 @@ services:
      - BUILD_DIR=/build
      - PATH=$PATH:/build/bin
     command:
-      sh -c "mkdir /tmp/libfuse/build && cd /tmp/libfuse/build && meson setup .. && ninja && ninja install && exec bash"
+      sh -c "cd /tmp/libfuse/build ninja && ninja install; exec bash"

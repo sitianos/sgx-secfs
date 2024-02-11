@@ -8,6 +8,9 @@
 #include <mbedtls/ctr_drbg.h>
 #include <mbedtls/entropy.h>
 #include <mbedtls/pk.h>
+#ifdef SGX_SWITCHLESS
+#include <sgx_uswitchless.h>
+#endif
 
 namespace secfs {
 Volume::Volume() : api(nullptr), is_loaded(false), eid(0) {
@@ -55,7 +58,21 @@ bool Volume::__init_enclave() {
     enclave_path = base_dir / config["enclave_path"];
 
     sgx_status_t ret;
+
+#ifdef SGX_SWITCHLESS
+    sgx_uswitchless_config_t us_config = SGX_USWITCHLESS_CONFIG_INITIALIZER;
+    us_config.num_uworkers = 2;
+    us_config.num_tworkers = 2;
+    const void* enclave_ex_p[32] = {0};
+    enclave_ex_p[SGX_CREATE_ENCLAVE_EX_SWITCHLESS_BIT_IDX] = &us_config;
+
+    ret = sgx_create_enclave_ex(
+        enclave_path.c_str(), SGX_DEBUG_FLAG, NULL, NULL, &eid, NULL,
+        SGX_CREATE_ENCLAVE_EX_SWITCHLESS, enclave_ex_p
+    );
+#else
     ret = sgx_create_enclave(enclave_path.c_str(), SGX_DEBUG_FLAG, NULL, NULL, &eid, NULL);
+#endif
     if (ret != SGX_SUCCESS) {
         std::cerr << enclave_err_msg(ret) << std::endl;
         return false;

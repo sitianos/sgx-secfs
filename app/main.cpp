@@ -32,7 +32,8 @@ static const struct fuse_lowlevel_ops secfs_oper = {
     .readdir = secfs_readdir,
     .releasedir = secfs_releasedir,
     .access = secfs_access,
-    .create = secfs_create
+    .create = secfs_create,
+    .fallocate = secfs_fallocate
 };
 
 struct secfs_options {

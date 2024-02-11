@@ -25,6 +25,10 @@ bool UUID::operator==(const UUID& uuid) const {
     return std::memcmp(data, uuid.data, sizeof(data)) == 0;
 }
 
+bool UUID::operator!=(const UUID& uuid) const {
+    return std::memcmp(data, uuid.data, sizeof(data)) != 0;
+}
+
 void UUID::load(const uint8_t* in) {
     std::memcpy(data, in, sizeof(data));
 }

@@ -2,6 +2,7 @@ SGX_SDK ?= /opt/intel/sgxsdk
 SGX_MODE ?= SIM
 SGX_ARCH ?= x64
 SGX_DEBUG ?= 1
+SGX_SWITCHLESS ?= 0
 
 BUILD_DIR ?= build
 BIN_DIR ?= $(BUILD_DIR)/bin

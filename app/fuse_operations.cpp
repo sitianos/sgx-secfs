@@ -21,7 +21,6 @@ void secfs_init(void* userdata, struct fuse_conn_info* conn) {
     (void)userdata;
     (void)conn;
     if (secfs::global_vol.options.writeback && conn->capable & FUSE_CAP_WRITEBACK_CACHE) {
-        printf("writeback enabled\n");
         conn->want |= FUSE_CAP_WRITEBACK_CACHE;
     }
 }
@@ -106,7 +105,6 @@ void secfs_setattr(
     } else {
         copy_statbuf(st, statbuf);
         if (to_set & (FUSE_SET_ATTR_ATIME | FUSE_SET_ATTR_MTIME)) {
-            printf("mtime is modified\n");
             struct timespec tv[2];
 
             st.st_atim.tv_sec = 0;
@@ -213,6 +211,8 @@ void secfs_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct f
     free(buf);
 }
 
+std::unordered_map<fuse_ino_t, std::vector<char>> file_cache;
+
 void secfs_write(
     fuse_req_t req, fuse_ino_t ino, const char* buf, size_t size, off_t off,
     struct fuse_file_info* fi
@@ -222,6 +222,15 @@ void secfs_write(
     int err;
     if (secfs::global_vol.options.debug)
         fuse_log(FUSE_LOG_DEBUG, "write(ino=%ld, size=%ld, off=%ld)\n", ino, size, off);
+
+    // auto iter = file_cache.emplace(ino, std::vector<char>(0)).first;
+    // std::vector<char>& cache = file_cache.find(ino)->second;
+    // if (cache.size() < size + off) {
+    //     cache.resize(size + off);
+    //     memcpy(cache.data() + off, buf, size);
+    // }
+    // fuse_reply_write(req, size);
+    // return;
 
     size_t wsize = size;
 
@@ -240,6 +249,21 @@ void secfs_flush(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info* fi) {
     (void)fi;
     sgx_status_t sgxstat;
     int err;
+
+    // auto iter = file_cache.find(ino);
+    // if (iter != file_cache.end()) {
+    //     std::vector<char>& cache = iter->second;
+    //     size_t cache_len = 32 * 1024 * 1024;
+    //     for(size_t off = 0; off < cache.size(); off += cache_len){
+    //         size_t size = std::min(cache.size() - off, cache_len);
+    //         sgxstat = ecall_fs_write(secfs::global_vol.eid, &err, ino, cache.data() + off, off, &size);
+    //         if (sgxstat != SGX_SUCCESS) {
+    //             std::cerr << enclave_err_msg(sgxstat) << std::endl;
+    //             fuse_reply_err(req, ENOENT);
+    //             return;
+    //         }
+    //     }
+    // }
 
     sgxstat = ecall_fs_flush(secfs::global_vol.eid, &err, ino);
     if (sgxstat != SGX_SUCCESS) {
@@ -354,5 +378,26 @@ void secfs_create(
         ep.attr_timeout = ep.entry_timeout = 1.0;
         copy_statbuf(ep.attr, statbuf);
         fuse_reply_create(req, &ep, fi);
+    }
+}
+
+void secfs_fallocate(
+    fuse_req_t req, fuse_ino_t ino, int mode, off_t offset, off_t length, struct fuse_file_info* fi
+){
+    (void)req;
+    (void)fi;
+    sgx_status_t sgxstat;
+    int err;
+
+    if (secfs::global_vol.options.debug)
+        fuse_log(FUSE_LOG_DEBUG, "fallocate(ino=%ld, mode=%d, offset=%ld, length=%ld)\n", ino, mode, offset, length);
+
+    sgxstat = ecall_fs_fallocate(secfs::global_vol.eid, &err, ino, mode, offset, length);
+
+    if (sgxstat != SGX_SUCCESS) {
+        std::cerr << enclave_err_msg(sgxstat) << std::endl;
+        fuse_reply_err(req, ENOENT);
+    } else {
+        fuse_reply_err(req, err);
     }
 }

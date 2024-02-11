@@ -1,5 +1,6 @@
 enclave {
     from "sgx_tstdc.edl" import *;
+    from "sgx_tswitchless.edl" import *;
     include "mbedtls/ecp.h"
 
     trusted {
@@ -16,19 +17,20 @@ enclave {
         public int ecall_fs_unlink(fuse_ino_t parent, [in, string] const char *name);
         public int ecall_fs_rmdir(fuse_ino_t parent, [in, string] const char *name);
         public int ecall_fs_open(fuse_ino_t ino, enum open_flag_t flags);
-        public int ecall_fs_read(fuse_ino_t ino, [user_check] char* buf, off_t offset, [in, out] size_t* size);
-        public int ecall_fs_write(fuse_ino_t ino, [user_check] const char* buf, off_t offset, [in, out] size_t* size);
+        public int ecall_fs_read(fuse_ino_t ino, [user_check] char* buf, off_t offset, [in, out] size_t* size) transition_using_threads;
+        public int ecall_fs_write(fuse_ino_t ino, [user_check] const char* buf, off_t offset, [in, out] size_t* size) transition_using_threads;
         public int ecall_fs_flush(fuse_ino_t ino);
         public int ecall_fs_get_dirent_size(fuse_ino_t ino, [out] size_t* entnum);
         public int ecall_fs_get_dirent(ino_t ino, [out, count = count] struct dirent_t* buf, size_t count);
         public int ecall_fs_access(fuse_ino_t ino, int mask);
         public int ecall_fs_create(fuse_ino_t parent, [in, string] const char *name, mode_t mode, [out] fuse_ino_t* ino, [out] struct stat_buffer_t* statbuf);
+        public int ecall_fs_fallocate(fuse_ino_t ino, int mode, off_t offset, size_t length) transition_using_threads;
     };
     untrusted {
         include "bridge.hpp"
 
-        void ocall_load_file([in, string] const char* filename, [out] void** content, [out] ssize_t* size);
-        void ocall_save_file([in, string] const char* filename, [in, size=size] void* content, size_t size);
+        void ocall_load_file([in, string] const char* filename, [out] void** content, [out] ssize_t* size) transition_using_threads;
+        void ocall_save_file([in, string] const char* filename, [in, size=size] void* content, size_t size) transition_using_threads;
         void ocall_remove_file([in, string] const char* filename, [out] int* err);
         void ocall_free([user_check] void* mem);
         void ocall_print_string([in, string] const char *str);
